@@ -91,6 +91,7 @@ export async function POST(req: Request) {
     }
   } catch (error) {
     console.error("Login Error:", error);
-    return NextResponse.json({ error: "Server Error" }, { status: 500, headers: corsHeaders });
+    const origin = req.headers.get("origin");
+    return NextResponse.json({ error: "Server Error" }, { status: 500, headers: getCorsHeaders(origin) });
   }
 }
