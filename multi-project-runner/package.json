@@ -1,0 +1,18 @@
+{
+  "name": "multi-project-runner",
+  "version": "1.0.0",
+  "description": "Script to run all connected Next.js projects.",
+  "main": "index.js",
+  "scripts": {
+    "dev:all": "concurrently \"npm run dev:editor\" \"npm run dev:store\" \"npm run dev:admin\"",
+    "dev:editor": "cd ..\\Test\\tshirt-editor && npm run dev -- --port 3000 -H 0.0.0.0",
+    "dev:store": "cd ..\\dropxcult-store && npm run dev -- --port 3001",
+    "dev:admin": "cd ..\\dropxcult-admin && npm run dev -- --port 3002"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

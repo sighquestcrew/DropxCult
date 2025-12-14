@@ -1,0 +1,620 @@
+"use client";
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import { Loader2, Plus, CheckCircle, XCircle, AlertTriangle, ShoppingCart, Trash2, Pencil, Globe, GlobeLock } from "lucide-react";
+import Link from "next/link";
+import { toast } from "sonner";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState } from "../../redux/store";
+import React from "react";
+import { useRouter } from "next/navigation";
+import { addToCart } from "../../redux/slices/cartSlice";
+
+export default function CustomizeDashboard() {
+  const router = useRouter();
+  const [isMounted, setIsMounted] = React.useState(false);
+  const [rejectionModal, setRejectionModal] = React.useState<{ open: boolean; reason: string; name: string }>({ open: false, reason: "", name: "" });
+  const [cartModal, setCartModal] = React.useState<{ open: boolean; design: any; size: string; qty: number }>({ open: false, design: null, size: "L", qty: 1 });
+  const [renameModal, setRenameModal] = React.useState<{ open: boolean; designId: string; currentName: string; newName: string }>({ open: false, designId: "", currentName: "", newName: "" });
+  const [loadingId, setLoadingId] = React.useState<string | null>(null); // Track which item is loading
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const dispatch = useDispatch();
+  const { userInfo } = useSelector((state: RootState) => state.auth);
+  const queryClient = useQueryClient();
+
+  // Delete Mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await axios.delete(`/api/customize/${id}`, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+    },
+    onSuccess: () => {
+      setLoadingId(null);
+      toast.success("Design Deleted");
+      queryClient.invalidateQueries({ queryKey: ["my-designs"] });
+    },
+    onError: () => { setLoadingId(null); toast.error("Failed to delete"); },
+  });
+
+  // Re-request Mutation (for rejected designs)
+  const rerequestMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await axios.post(`/api/customize/${id}/rerequest`, {}, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+    },
+    onSuccess: () => {
+      setLoadingId(null);
+      toast.success("Design re-submitted for approval!");
+      queryClient.invalidateQueries({ queryKey: ["my-designs"] });
+    },
+    onError: () => { setLoadingId(null); toast.error("Failed to re-request"); },
+  });
+
+  // Cancel Request Mutation (keeps design as draft)
+  const cancelMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await axios.post(`/api/customize/${id}/cancel`, {}, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+    },
+    onSuccess: () => {
+      setLoadingId(null);
+      toast.success("Request cancelled - design saved as draft");
+      queryClient.invalidateQueries({ queryKey: ["my-designs"] });
+    },
+    onError: () => { setLoadingId(null); toast.error("Failed to cancel request"); },
+  });
+
+  // Toggle Visibility Mutation (public/private)
+  const visibilityMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await axios.post(`/api/customize/${id}/visibility`, {}, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+      return data;
+    },
+    onSuccess: (data) => {
+      setLoadingId(null);
+      toast.success(data.message);
+      queryClient.invalidateQueries({ queryKey: ["my-designs"] });
+    },
+    onError: () => { setLoadingId(null); toast.error("Failed to update visibility"); },
+  });
+
+  // Toggle 3D Design Visibility (Post to Community)
+  const visibility3DMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await axios.post(`/api/designs/${id}/visibility`, {}, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+      return data;
+    },
+    onSuccess: (data) => {
+      setLoadingId(null);
+      toast.success(data.message);
+      queryClient.invalidateQueries({ queryKey: ["my-designs"] });
+    },
+    onError: () => { setLoadingId(null); toast.error("Only approved designs can be posted"); },
+  });
+
+  // Rename Design Mutation
+  const renameMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const { data } = await axios.patch(`/api/customize/${id}/rename`, { name }, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Design renamed successfully");
+      setRenameModal({ open: false, designId: "", currentName: "", newName: "" });
+      queryClient.invalidateQueries({ queryKey: ["my-designs"] });
+    },
+    onError: () => toast.error("Failed to rename design"),
+  });
+
+  const { data: requests, isLoading, refetch } = useQuery({
+    queryKey: ["my-designs", userInfo?._id],
+    queryFn: async () => {
+      if (!userInfo) return [];
+      const { data } = await axios.get("/api/customize", {
+        headers: { Authorization: `Bearer ${userInfo.token}` }
+      });
+      return data;
+    },
+    enabled: !!userInfo,
+  });
+
+  const handleRoyalty = async (id: string, accept: boolean) => {
+    try {
+      await axios.post(`/api/customize/${id}/royalty`, { accept }, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+      toast.success(accept ? "You accepted the deal!" : "You kept the design private.");
+      refetch();
+    } catch (e) {
+      toast.error("Action failed");
+    }
+  };
+
+  // 👇 UPDATED: Pricing Logic to match Backend
+  const handleAddToCart = (req: any) => {
+    // 1. Check for Sleeves (Images OR Text)
+    const hasSleeveImages =
+      (req.leftImage && req.leftImage !== "") ||
+      (req.rightImage && req.rightImage !== "") ||
+      (req.leftSleeveImage && req.leftSleeveImage !== "") ||
+      (req.rightSleeveImage && req.rightSleeveImage !== "");
+
+    // Safely check text config
+    const leftText = req.textConfig?.left?.content;
+    const rightText = req.textConfig?.right?.content;
+    const hasSleeveText = (leftText && leftText.trim() !== "") || (rightText && rightText.trim() !== "");
+
+    const hasSleeves = hasSleeveImages || hasSleeveText;
+
+    // 2. Determine Price
+    // If Hoodie: Standard 3000 (or add logic if needed)
+    // If T-Shirt: 999 base, 1199 if sleeves
+    let price = 0;
+
+    if (req.type === "Hoodie") {
+      price = 3000; // Adjust hoodie logic here if needed
+    } else {
+      price = hasSleeves ? 1199 : 999;
+    }
+
+    // Handle 3D designs with different structure
+    if (req.is3D) {
+      // Open cart modal for size/qty selection
+      setCartModal({ open: true, design: req, size: "L", qty: 1 });
+      return; // Don't add yet, wait for modal confirmation
+    } else {
+      // 2D designs (CustomRequest) - add directly
+      dispatch(addToCart({
+        id: req.id,
+        name: `Custom ${req.type} - ${req.color}`,
+        slug: `custom-${req.id}`,
+        image: req.frontImage,
+        price: price,
+        size: req.size,
+        qty: 1,
+        isCustom: true,
+        designId: req.id
+      }));
+
+      toast.success(`Added to Cart @ ₹${price}`);
+      router.push("/cart");
+    }
+  };
+
+  // Confirm add to cart from modal (for 3D designs)
+  const confirmAddToCart = () => {
+    const req = cartModal.design;
+    if (!req) return;
+
+    // Calculate price
+    const is3DOversized = req.tshirtType === "oversized";
+    const price = is3DOversized ? 1199 : 999;
+
+    dispatch(addToCart({
+      id: req.id,
+      name: req.name || `Custom 3D T-Shirt`,
+      slug: `custom-3d-${req.id}`,
+      image: req.previewImage || '/placeholder-design.png',
+      price: price,
+      size: cartModal.size,
+      qty: cartModal.qty,
+      isCustom: true,
+      designId: req.id
+    }));
+
+    setCartModal({ open: false, design: null, size: "L", qty: 1 });
+    toast.success(`Added to Cart @ ₹${price}`);
+    router.push("/cart");
+  };
+
+  if (!isMounted || isLoading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-red-600" /></div>;
+
+  return (
+    <div className="min-h-screen bg-black text-white pt-10 pb-20">
+      <div className="container mx-auto px-4">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tighter mb-2">CUSTOM ARTIFACTS</h1>
+            <p className="text-gray-400">Your personal collection of mythology.</p>
+          </div>
+          <div className="flex gap-3 w-full sm:w-auto">
+            <Link href="/customize/design" className="flex-1 sm:flex-initial">
+              <button className="bg-white text-black px-6 py-3 font-bold rounded flex items-center gap-2 hover:bg-gray-200 transition-colors w-full justify-center">
+                <Plus size={20} /> Create New
+              </button>
+            </Link>
+            <Link
+              href={`${process.env.NEXT_PUBLIC_EDITOR_URL || 'http://localhost:3000'}?userId=${userInfo?._id}&token=${userInfo?.token}&userName=${encodeURIComponent(userInfo?.name || '')}&isAdmin=${userInfo?.isAdmin}`}
+              target="_blank"
+              className="flex-1 sm:flex-initial"
+            >
+              <button className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 font-bold rounded flex items-center gap-2 hover:from-purple-700 hover:to-pink-700 transition-colors w-full justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v20M2 12h20" />
+                  <path d="M7 7l10 10M7 17l10-10" />
+                </svg>
+                3D AR Editor
+              </button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Product Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-8">
+          {requests?.map((req: any) => (
+            <div key={req.id} className="group block">
+              <div className="bg-zinc-900 border border-zinc-800 overflow-hidden hover:border-red-900 transition-all duration-300 flex flex-col h-full">
+
+                {/* Image */}
+                <div className="aspect-square relative overflow-hidden bg-zinc-800">
+                  {req.frontImage ? (
+                    <img
+                      src={req.frontImage}
+                      alt="Design Preview"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-600 font-bold">
+                      NO PREVIEW
+                    </div>
+                  )}
+
+                  {/* Status Badge Overlay */}
+                  <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+                    {req.is3D && <span className="bg-purple-500/20 text-purple-400 text-[10px] font-bold px-2 py-1 rounded border border-purple-500/30">3D DESIGN</span>}
+                    {req.status === "Accepted" && <span className="bg-green-500/20 text-green-500 text-[10px] font-bold px-2 py-1 rounded border border-green-500/30">APPROVED</span>}
+                    {req.status === "Accepted" && req.hasRoyaltyOffer && <span className="bg-yellow-500/20 text-yellow-400 text-[10px] font-bold px-2 py-1 rounded border border-yellow-500/30">💰 ROYALTY</span>}
+                    {req.status === "Rejected" && <span className="bg-red-500/20 text-red-500 text-[10px] font-bold px-2 py-1 rounded border border-red-500/30">REJECTED</span>}
+                    {req.status === "Pending" && <span className="bg-zinc-500/20 text-zinc-400 text-[10px] font-bold px-2 py-1 rounded border border-zinc-500/30">PENDING</span>}
+                    {req.status === "Royalty_Pending" && <span className="bg-yellow-500/20 text-yellow-500 text-[10px] font-bold px-2 py-1 rounded border border-yellow-500/30">OFFER</span>}
+                  </div>
+                </div>
+
+                {/* Details */}
+                <div className="p-4 flex flex-col flex-1">
+                  <div className="text-xs text-red-500 mb-1 uppercase tracking-widest font-semibold">
+                    {req.type}
+                  </div>
+                  <div className="flex items-center gap-1 mb-1">
+                    <h3 className="text-lg font-bold text-white leading-tight truncate flex-1">
+                      {req.is3D ? req.name : `${req.color} Edition`}
+                    </h3>
+                    {req.is3D && (
+                      <button
+                        onClick={() => setRenameModal({ open: true, designId: req.id, currentName: req.name, newName: req.name })}
+                        className="p-1 hover:bg-zinc-700 rounded text-gray-400 hover:text-white transition-colors"
+                        title="Rename design"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-gray-400 text-sm mb-2">Size: {req.size}</p>
+
+                  {/* Rejection Reason Display - Click to open popup */}
+                  {req.status === "Rejected" && req.rejectionReason && (
+                    <button
+                      onClick={() => setRejectionModal({ open: true, reason: req.rejectionReason, name: req.name || req.type })}
+                      className="w-full bg-red-900/20 border border-red-800/30 rounded p-2 mb-3 text-left hover:bg-red-900/30 transition-colors cursor-pointer"
+                    >
+                      <p className="text-xs text-red-400 font-semibold mb-1">Rejection Reason:</p>
+                      <p className="text-xs text-gray-300 line-clamp-2">{req.rejectionReason}</p>
+                      <p className="text-xs text-red-400 mt-1 underline">Click to view full reason</p>
+                    </button>
+                  )}
+
+                  {/* Actions - Pushed to bottom */}
+                  <div className="mt-auto space-y-4">
+
+                    {/* Royalty Offer */}
+                    {req.status === "Royalty_Pending" && (
+                      <div className="bg-yellow-900/20 border border-yellow-600/30 p-2 rounded text-center">
+                        <p className="text-yellow-500 text-xs font-bold mb-2 flex items-center justify-center gap-1">
+                          <AlertTriangle size={12} /> Make Public?
+                        </p>
+                        <div className="flex gap-2 justify-center">
+                          <button onClick={() => handleRoyalty(req.id, true)} className="bg-green-600 text-white text-[10px] px-2 py-1 rounded hover:bg-green-500">Accept</button>
+                          <button onClick={() => handleRoyalty(req.id, false)} className="bg-red-600 text-white text-[10px] px-2 py-1 rounded hover:bg-red-500">Reject</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Add to Cart */}
+                    {req.status === "Accepted" && (
+                      <button
+                        onClick={() => handleAddToCart(req)}
+                        className="w-full bg-white hover:bg-gray-200 text-black py-2 text-xs font-bold rounded flex items-center justify-center gap-2 transition-colors uppercase tracking-wide"
+                      >
+                        <ShoppingCart size={14} /> Add to Cart
+                      </button>
+                    )}
+
+                    {/* Shop Visibility Toggle - For royalty designs */}
+                    {req.is3D && req.status === "Accepted" && req.hasRoyaltyOffer && (
+                      <button
+                        onClick={() => { setLoadingId(req.id); visibilityMutation.mutate(req.id); }}
+                        disabled={loadingId === req.id}
+                        className={`w-full py-2 text-[10px] sm:text-xs font-bold rounded flex items-center justify-center gap-1 sm:gap-2 transition-colors uppercase tracking-wide ${req.isPublic
+                          ? "bg-cyan-600/20 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-600/30"
+                          : "bg-zinc-800 border border-zinc-600 text-gray-400 hover:bg-zinc-700"
+                          } ${loadingId === req.id ? "opacity-70 cursor-not-allowed" : ""}`}
+                      >
+                        {loadingId === req.id ? (
+                          <><Loader2 size={14} className="animate-spin" /> Updating...</>
+                        ) : (
+                          req.isPublic ? "🛒 In Shop" : "🛒 Sell in Shop"
+                        )}
+                      </button>
+                    )}
+
+                    {/* Request Royalty button - only for designs that previously had royalty */}
+                    {req.is3D && req.status === "Accepted" && req.wasOfferedRoyalty && !req.hasRoyaltyOffer && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await axios.post(`/api/customize/${req.id}/rerequest`, {}, {
+                              headers: { Authorization: `Bearer ${userInfo?.token}` }
+                            });
+                            toast.success("Royalty request sent! Waiting for admin approval.");
+                            refetch();
+                          } catch (e) {
+                            toast.error("Failed to send request");
+                          }
+                        }}
+                        className="w-full py-2 text-[10px] sm:text-xs font-bold rounded flex items-center justify-center gap-1 sm:gap-2 transition-colors uppercase tracking-wide bg-yellow-600/20 border border-yellow-500/50 text-yellow-400 hover:bg-yellow-600/30"
+                      >
+                        💰 Request Royalty
+                      </button>
+                    )}
+
+                    {/* Delete Request (Only for 2D designs when Pending) */}
+                    {!req.is3D && req.status === "Pending" && (
+                      <button
+                        onClick={() => {
+                          if (confirm("Delete this design?")) { setLoadingId(req.id); deleteMutation.mutate(req.id); }
+                        }}
+                        disabled={loadingId === req.id}
+                        className={`w-full border border-zinc-700 hover:border-red-800 hover:text-red-500 text-zinc-500 py-2 text-xs font-bold rounded flex items-center justify-center gap-2 transition-colors uppercase tracking-wide ${loadingId === req.id ? "opacity-70 cursor-not-allowed" : ""}`}
+                      >
+                        {loadingId === req.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} {loadingId === req.id ? "Deleting..." : "Delete Request"}
+                      </button>
+                    )}
+
+                    {/* Cancel Request for 3D Design - Pending (keeps design as draft) */}
+                    {req.is3D && req.status === "Pending" && (
+                      <button
+                        onClick={() => {
+                          if (confirm("Cancel this request? Your design will be saved as a draft.")) {
+                            cancelMutation.mutate(req.id);
+                          }
+                        }}
+                        className="w-full border border-zinc-700 hover:border-yellow-600 hover:text-yellow-500 text-zinc-500 py-2 text-xs font-bold rounded flex items-center justify-center gap-2 transition-colors uppercase tracking-wide"
+                      >
+                        <Trash2 size={14} /> Cancel Request
+                      </button>
+                    )}
+
+                    {/* Delete 3D Design Permanently - Shows for drafts, rejected, and accepted */}
+                    {req.is3D && (req.status === "Draft" || req.status === "Rejected" || req.status === "Accepted") && (
+                      <button
+                        onClick={() => {
+                          if (confirm("Permanently delete this 3D design? This cannot be undone.")) {
+                            setLoadingId(req.id); deleteMutation.mutate(req.id);
+                          }
+                        }}
+                        disabled={loadingId === req.id}
+                        className={`w-full bg-red-600/10 border border-red-600/30 hover:bg-red-600 text-red-500 hover:text-white py-2 text-[10px] sm:text-xs font-bold rounded flex items-center justify-center gap-1 sm:gap-2 transition-colors uppercase tracking-wide ${loadingId === req.id ? "opacity-70 cursor-not-allowed" : ""}`}
+                      >
+                        {loadingId === req.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} {loadingId === req.id ? "Deleting..." : "Delete"}
+                      </button>
+                    )}
+
+                    {/* Open 3D Editor - Accepted, Rejected, OR Draft (to edit and re-submit) */}
+                    {req.is3D && (req.status === "Accepted" || req.status === "Rejected" || req.status === "Draft") && (
+                      <Link
+                        href={`${process.env.NEXT_PUBLIC_EDITOR_URL || 'http://localhost:3000'}?userId=${userInfo?._id}&token=${userInfo?.token}&userName=${encodeURIComponent(userInfo?.name || '')}&designId=${req.id}`}
+                        target="_blank"
+                        className="block"
+                      >
+                        <button className="w-full bg-purple-600/20 border border-purple-500/50 hover:bg-purple-600 hover:text-white text-purple-400 py-2 text-[10px] sm:text-xs font-bold rounded flex items-center justify-center gap-1 sm:gap-2 transition-colors uppercase tracking-wide">
+                          <Plus size={12} /> {req.status === "Accepted" ? "Editor" : "Edit"}
+                        </button>
+                      </Link>
+                    )}
+
+                    {/* Re-request Button - For Rejected OR Draft */}
+                    {req.is3D && (req.status === "Rejected" || req.status === "Draft") && (
+                      <button
+                        onClick={() => { setLoadingId(req.id); rerequestMutation.mutate(req.id); }}
+                        disabled={loadingId === req.id}
+                        className={`w-full bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600 hover:text-white text-blue-400 py-2 text-[10px] sm:text-xs font-bold rounded flex items-center justify-center gap-1 sm:gap-2 transition-colors uppercase tracking-wide ${loadingId === req.id ? "opacity-70 cursor-not-allowed" : ""}`}
+                      >
+                        {loadingId === req.id ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} {loadingId === req.id ? "Requesting..." : "Request"}
+                      </button>
+                    )}
+
+                    {/* Post to Community Button - For Accepted 3D Designs */}
+                    {req.is3D && req.status === "Accepted" && (
+                      <button
+                        onClick={() => { setLoadingId(req.id); visibility3DMutation.mutate(req.id); }}
+                        disabled={loadingId === req.id}
+                        className={`w-full ${req.isPublic
+                          ? "bg-green-600/20 border border-green-500/50 hover:bg-green-600 text-green-400"
+                          : "bg-orange-600/20 border border-orange-500/50 hover:bg-orange-600 text-orange-400"
+                          } hover:text-white py-2 text-[10px] sm:text-xs font-bold rounded flex items-center justify-center gap-1 sm:gap-2 transition-colors uppercase tracking-wide ${loadingId === req.id ? "opacity-70 cursor-not-allowed" : ""}`}
+                      >
+                        {loadingId === req.id ? <Loader2 size={12} className="animate-spin" /> : req.isPublic ? <Globe size={12} /> : <GlobeLock size={12} />}
+                        {loadingId === req.id ? "Updating..." : req.isPublic ? "In Community" : "Show in Community"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {(!requests || requests.length === 0) && (
+            <div className="col-span-full text-center py-20 text-gray-500">
+              No custom requests yet. Start designing.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Rejection Reason Modal */}
+      {rejectionModal.open && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setRejectionModal({ open: false, reason: "", name: "" })}>
+          <div className="bg-zinc-900 border border-red-800/50 rounded-lg p-6 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-red-400 mb-2">Rejection Reason</h3>
+            <p className="text-gray-400 text-sm mb-4">For: {rejectionModal.name}</p>
+            <div className="bg-black/50 rounded p-4 border border-red-900/30">
+              <p className="text-gray-300 text-sm whitespace-pre-wrap">{rejectionModal.reason}</p>
+            </div>
+            <button
+              onClick={() => setRejectionModal({ open: false, reason: "", name: "" })}
+              className="w-full mt-4 bg-zinc-800 hover:bg-zinc-700 text-white py-2 rounded font-bold transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cart Modal - Size/Quantity Selection */}
+      {cartModal.open && cartModal.design && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setCartModal({ open: false, design: null, size: "L", qty: 1 })}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            {/* Design Preview */}
+            <div className="flex gap-4 mb-6">
+              <div className="w-24 h-24 bg-zinc-800 rounded overflow-hidden flex-shrink-0">
+                {cartModal.design.previewImage && (
+                  <img src={cartModal.design.previewImage} alt={cartModal.design.name} className="w-full h-full object-cover" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">{cartModal.design.name}</h3>
+                <p className="text-gray-400 text-sm">{cartModal.design.tshirtType === "oversized" ? "Oversized T-Shirt" : "Regular T-Shirt"}</p>
+                <p className="text-red-500 font-bold text-lg mt-1">₹{cartModal.design.tshirtType === "oversized" ? 1199 : 999}</p>
+              </div>
+            </div>
+
+            {/* Size Selection */}
+            <div className="mb-6">
+              <p className="text-gray-400 text-sm mb-3 uppercase tracking-wider">Select Size</p>
+              <div className="flex gap-2">
+                {["S", "M", "L", "XL"].map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => setCartModal({ ...cartModal, size })}
+                    className={`w-12 h-12 border rounded font-bold transition-colors ${cartModal.size === size
+                      ? "bg-red-600 border-red-600 text-white"
+                      : "border-zinc-600 text-gray-400 hover:border-white hover:text-white"
+                      }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quantity Selection */}
+            <div className="mb-6">
+              <p className="text-gray-400 text-sm mb-3 uppercase tracking-wider">Quantity</p>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setCartModal({ ...cartModal, qty: Math.max(1, cartModal.qty - 1) })}
+                  className="w-10 h-10 border border-zinc-600 rounded text-white hover:bg-zinc-800 transition-colors"
+                >
+                  -
+                </button>
+                <span className="text-white font-bold text-xl w-8 text-center">{cartModal.qty}</span>
+                <button
+                  onClick={() => setCartModal({ ...cartModal, qty: cartModal.qty + 1 })}
+                  className="w-10 h-10 border border-zinc-600 rounded text-white hover:bg-zinc-800 transition-colors"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCartModal({ open: false, design: null, size: "L", qty: 1 })}
+                className="flex-1 border border-zinc-600 text-gray-400 py-3 rounded font-bold hover:bg-zinc-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAddToCart}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded font-bold flex items-center justify-center gap-2"
+              >
+                <ShoppingCart size={18} /> Add to Cart
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Modal */}
+      {renameModal.open && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4">Rename Design</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-gray-400 mb-2 block">Current Name</label>
+                <p className="text-white font-medium">{renameModal.currentName}</p>
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-400 mb-2 block">New Name</label>
+                <input
+                  type="text"
+                  value={renameModal.newName}
+                  onChange={(e) => setRenameModal({ ...renameModal, newName: e.target.value })}
+                  className="w-full bg-black border border-zinc-700 py-2 px-3 rounded text-white focus:border-purple-500 outline-none"
+                  placeholder="Enter new name..."
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setRenameModal({ open: false, designId: "", currentName: "", newName: "" })}
+                className="flex-1 border border-zinc-600 text-gray-400 py-2 rounded font-bold hover:bg-zinc-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => renameMutation.mutate({ id: renameModal.designId, name: renameModal.newName })}
+                disabled={!renameModal.newName.trim() || renameModal.newName === renameModal.currentName || renameMutation.isPending}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white py-2 rounded font-bold flex items-center justify-center gap-2"
+              >
+                {renameMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Pencil size={16} />}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

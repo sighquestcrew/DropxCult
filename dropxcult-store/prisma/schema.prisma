@@ -1,0 +1,265 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  password        String
+  isAdmin         Boolean  @default(false)
+  
+  // Profile Fields
+  image           String?
+  bio             String?  @default("Just another cult member.")
+  
+  // Cult Gamification
+  rank            String   @default("Initiate")
+  ordersCount     Int      @default(0)
+  designsApproved Int      @default(0)
+  
+  // Royalty System
+  royaltyPoints   Int      @default(0)
+  royaltyEarnings Int      @default(0)
+  
+  // Social / Follow counts
+  followersCount  Int      @default(0)
+  followingCount  Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  orders          Order[]
+  customRequests  CustomRequest[]
+  likedRequests   CustomRequest[] @relation("UserLikes")
+  designs         Design[]
+  
+  // Community relations
+  designLikes     DesignLike[]
+  designComments  DesignComment[]
+  followers       Follow[] @relation("Followers")
+  following       Follow[] @relation("Following")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String
+  price       Float
+  category    String
+  images      String[]
+  sizes       String[] @default(["S", "M", "L", "XL", "XXL"])
+  colors      String[]
+  stock       Int      @default(0)
+  isFeatured  Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  userId          String?
+  user            User?       @relation(fields: [userId], references: [id])
+  
+  orderItems      OrderItem[]
+  
+  // Shipping Address (Embedded in Mongoose, JSON in Postgres)
+  shippingAddress Json
+  
+  paymentMethod   String
+  
+  // Payment Result (Embedded in Mongoose, JSON in Postgres)
+  paymentResult   Json?
+  
+  itemsPrice      Float       @default(0.0)
+  shippingPrice   Float       @default(0.0)
+  taxPrice        Float       @default(0.0)
+  totalPrice      Float       @default(0.0)
+  
+  isPaid          Boolean     @default(false)
+  paidAt          DateTime?
+  
+  isDelivered     Boolean     @default(false)
+  deliveredAt     DateTime?
+  
+  status          String      @default("Processing")
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  name      String
+  qty       Int
+  image     String
+  price     Float
+  size      String
+  
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+}
+
+model CustomRequest {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  type            String
+  color           String
+  size            String
+  status          String   @default("Pending")
+  
+  // Mixed types in Mongoose -> Json in Postgres
+  textConfig      Json?
+  layers          Json?
+  designConfig    Json?
+  
+  frontImage      String?
+  backImage       String?
+  leftSleeveImage String?
+  rightSleeveImage String?
+  
+  adminMessage    String?
+  isPublicDesign  Boolean  @default(false)
+  royaltyAccepted Boolean  @default(false)
+  
+  likes           User[]   @relation("UserLikes")
+  salesCount      Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Design {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  // Design Metadata
+  name            String   @default("Untitled Design")
+  tshirtType      String   @default("regular") // "regular" or "oversized"
+  tshirtColor     String   @default("#ffffff")
+  
+  // Approval Status
+  status          String   @default("Pending") // Pending, Accepted, Rejected, Royalty_Pending, Draft
+  rejectionReason String?  // Admin's reason for rejection
+  isPublic        Boolean  @default(false) // If true, shows in shop page
+  hasRoyaltyOffer Boolean  @default(false) // If admin offered royalty, this becomes true
+  wasOfferedRoyalty Boolean @default(false) // True if ever offered royalty (never resets)
+  
+  // Canvas Data (Fabric.js JSON export)
+  canvasState     Json
+  
+  // Preview Images
+  previewImage    String?  // Base64 or URL of the front preview
+  
+  // Engagement Stats
+  likesCount      Int      @default(0)
+  commentsCount   Int      @default(0)
+  sharesCount     Int      @default(0)
+  
+  // Community relations
+  likes           DesignLike[]
+  comments        DesignComment[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Track likes on designs
+model DesignLike {
+  id        String   @id @default(cuid())
+  userId    String
+  designId  String
+  user      User     @relation(fields: [userId], references: [id])
+  design    Design   @relation(fields: [designId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  
+  @@unique([userId, designId])
+}
+
+// Comments on designs
+model DesignComment {
+  id         String   @id @default(cuid())
+  userId     String
+  designId   String
+  content    String
+  likesCount Int      @default(0)
+  
+  // Threading - parent/replies
+  parentId   String?
+  parent     DesignComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    DesignComment[] @relation("CommentReplies")
+  
+  user       User     @relation(fields: [userId], references: [id])
+  design     Design   @relation(fields: [designId], references: [id], onDelete: Cascade)
+  likes      CommentLike[]
+  createdAt  DateTime @default(now())
+}
+
+// Track likes on comments
+model CommentLike {
+  id        String        @id @default(cuid())
+  userId    String
+  commentId String
+  comment   DesignComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+  
+  @@unique([userId, commentId])
+}
+
+// User follow relationships
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String   // User who is following
+  followingId String   // User being followed
+  follower    User     @relation("Following", fields: [followerId], references: [id])
+  following   User     @relation("Followers", fields: [followingId], references: [id])
+  createdAt   DateTime @default(now())
+  
+  @@unique([followerId, followingId])
+}
+
+// Audit Log for compliance tracking
+model AuditLog {
+  id           String   @id @default(cuid())
+  
+  // Who performed the action
+  userId       String?
+  userEmail    String?
+  userRole     String?  // "user", "admin"
+  
+  // What action was performed
+  action       String   // CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT, etc.
+  entity       String   // User, Order, Product, Design, etc.
+  entityId     String?  // ID of affected resource
+  
+  // Context details
+  details      Json?    // Additional details (old/new values, etc.)
+  ipAddress    String?
+  userAgent    String?
+  
+  // Outcome
+  status       String   @default("SUCCESS") // SUCCESS, FAILURE, DENIED
+  errorMessage String?
+  
+  createdAt    DateTime @default(now())
+  
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([action])
+  @@index([createdAt])
+}

@@ -1,0 +1,16 @@
+# Robots.txt for DropXCult Store
+# Allow all search engines
+
+User-agent: *
+Allow: /
+
+# Block API routes from indexing
+Disallow: /api/
+Disallow: /login
+Disallow: /register
+Disallow: /profile
+Disallow: /checkout
+Disallow: /cart
+
+# Sitemap location
+Sitemap: http://localhost:3001/sitemap.xml
