@@ -26,16 +26,45 @@ export default function Home() {
     const [cameraDistance, setCameraDistance] = useState(50);
     const [showControls, setShowControls] = useState(false);
     const [isEditorVisible, setIsEditorVisible] = useState(true);
+    const [modelScale, setModelScale] = useState(10);
 
     // Asset paths based on type
     const assets = {
         regular: {
             model: "/models/Animated Walking Tshirt.glb",
-            template: "/designs/Template.png"
+            template: "/designs/Template.png",
+            scale: [10, 10, 10],
+            position: [0, 3, 0],
+            offsetX: -0.01,
+            offsetY: -0.01,
+            normalMap: "/Texture/Oversized-Tshirt_normal_1001.png"
         },
         oversized: {
             model: "/models/Over_Size_Tshirt.glb",
-            template: "/designs/Over_Size_Tshirt_Template.png"
+            template: "/designs/Over_Size_Tshirt_Template.png",
+            scale: [50, 50, 50],
+            position: [0, -5, 0],
+            offsetX: -0.01,
+            offsetY: -0.01,
+            normalMap: "/Texture/Oversized-Tshirt_normal_1001.png"
+        },
+        hoodie: {
+            model: "/models/Hoodie Mockup.glb",
+            template: "/designs/Hooodie_Templete.png",
+            scale: [48, 48, 48],
+            position: [0, -5, 0],
+            offsetX: 0,
+            offsetY: 0,
+            normalMap: "/Texture/Oversized-Tshirt_normal_1001.png"
+        },
+        sweatshirt: {
+            model: "/models/Sweatshirt.glb",
+            template: "/designs/Sweatshirt.png",
+            scale: [55, 55, 55],
+            position: [0, -5, 0],
+            offsetX: 0,
+            offsetY: 0,
+            normalMap: "/Texture/Oversized-Tshirt_normal_1001.png"
         }
     };
 
@@ -46,6 +75,14 @@ export default function Home() {
             texture.needsUpdate = true;
         }
     }, [texture, offsetY, offsetX]);
+
+    // Update model scale and offsets when type changes
+    useEffect(() => {
+        const currentAsset = assets[tshirtType as keyof typeof assets];
+        setModelScale(currentAsset.scale[0]);
+        setOffsetX(currentAsset.offsetX);
+        setOffsetY(currentAsset.offsetY);
+    }, [tshirtType]);
 
     // Adjust camera distance when view changes
     useEffect(() => {
@@ -126,7 +163,7 @@ export default function Home() {
 
             {/* 3D Preview Section - Full screen in viewOnly mode */}
             <div
-                className={`w-full ${isViewOnly ? 'h-screen' : (isEditorVisible ? 'h-[50vh]' : 'h-screen')} lg:h-full ${isViewOnly ? 'lg:w-full' : 'lg:w-1/2'} relative shrink-0 transition-all duration-300 ${isViewOnly ? '' : 'pb-20 lg:pb-24'}`}
+                className={`w-full ${isViewOnly ? 'h-screen' : (isEditorVisible ? 'h-[50vh]' : 'h-screen')} lg:h-full ${isViewOnly ? 'lg:w-full' : 'lg:w-1/2'} relative shrink-0 transition-all duration-300 bg-[#1a1a1a] ${isViewOnly ? '' : 'pb-20 lg:pb-24'}`}
                 style={{ touchAction: 'pan-y pinch-zoom' }}
             >
                 {/* Mobile View Toggle Button - Hidden in viewOnly mode */}
@@ -143,70 +180,113 @@ export default function Home() {
 
                 {/* Texture Controls - Hidden in viewOnly mode */}
                 {!isViewOnly && (showControls ? (
-                    <Card className="absolute top-2 left-2 lg:top-4 lg:left-4 z-10 w-56 lg:w-64">
-                        <div className="p-3 lg:p-4">
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-sm font-semibold">Texture Controls</h3>
+                    <div className="absolute top-2 left-2 lg:top-4 lg:left-4 z-10 w-60 lg:w-72">
+                        <div className="bg-black/80 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-gradient-to-r from-purple-500/20 to-pink-500/20">
+                                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 animate-pulse"></span>
+                                    Model Settings
+                                </h3>
                                 <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => setShowControls(false)}
-                                    className="h-6 w-6 p-0"
+                                    className="h-7 w-7 p-0 hover:bg-white/10 rounded-lg text-white/70 hover:text-white"
                                 >
                                     <ChevronUp className="h-4 w-4" />
                                 </Button>
                             </div>
 
-                            <div className="space-y-3 lg:space-y-4">
+                            <div className="p-4 space-y-4">
+                                {/* Fit Type Selector */}
                                 <div className="space-y-2">
-                                    <label className="text-xs lg:text-sm font-medium">Fit Type</label>
+                                    <label className="text-xs font-medium text-white/60 uppercase tracking-wider">Product Type</label>
                                     <select
-                                        className="w-full h-8 rounded border bg-background text-sm px-2"
+                                        className="w-full h-10 rounded-xl border border-white/10 bg-white/5 text-white text-sm px-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all cursor-pointer appearance-none"
+                                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundPosition: 'right 0.75rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
                                         value={tshirtType}
-                                        onChange={(e) => dispatch(setTshirtType(e.target.value as 'regular' | 'oversized'))}
+                                        onChange={(e) => dispatch(setTshirtType(e.target.value as 'regular' | 'oversized' | 'hoodie' | 'sweatshirt'))}
                                     >
-                                        <option value="regular">Regular Fit</option>
-                                        <option value="oversized">Oversized Fit</option>
+                                        <option value="regular" className="bg-zinc-900">Regular Fit T-Shirt</option>
+                                        <option value="oversized" className="bg-zinc-900">Oversized T-Shirt</option>
+                                        <option value="hoodie" className="bg-zinc-900">Hoodie</option>
+                                        <option value="sweatshirt" className="bg-zinc-900">Sweatshirt</option>
                                     </select>
                                 </div>
+
+                                {/* Color Picker */}
                                 <div className="space-y-2">
-                                    <label className="text-xs lg:text-sm font-medium">
-                                        Offset Y: {offsetY.toFixed(2)}
-                                    </label>
+                                    <label className="text-xs font-medium text-white/60 uppercase tracking-wider">Product Color</label>
+                                    <div className="relative">
+                                        <input
+                                            type="color"
+                                            value={tshirtColor}
+                                            onChange={(e) => dispatch(setTshirtColor(e.target.value))}
+                                            className="w-full h-12 rounded-xl border border-white/10 cursor-pointer bg-transparent"
+                                            style={{ padding: '2px' }}
+                                        />
+                                        <div className="absolute inset-0 rounded-xl pointer-events-none border border-white/20"></div>
+                                    </div>
+                                </div>
+
+                                {/* Model Scale */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-medium text-white/60 uppercase tracking-wider">Scale</label>
+                                        <span className="text-xs font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-md">{modelScale}</span>
+                                    </div>
+                                    <Slider
+                                        min={5}
+                                        max={100}
+                                        step={1}
+                                        value={[modelScale]}
+                                        onValueChange={(value) => setModelScale(value[0])}
+                                        className="py-2"
+                                    />
+                                </div>
+
+                                {/* Advanced Settings Divider */}
+                                <div className="flex items-center gap-2 pt-2">
+                                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+                                    <span className="text-[10px] text-white/30 uppercase tracking-widest">Advanced</span>
+                                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+                                </div>
+
+                                {/* Offset Y */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-medium text-white/60">Offset Y</label>
+                                        <span className="text-xs font-mono text-white/40">{offsetY.toFixed(2)}</span>
+                                    </div>
                                     <Slider
                                         min={-2}
                                         max={2}
                                         step={0.01}
                                         value={[offsetY]}
                                         onValueChange={(value) => setOffsetY(value[0])}
+                                        className="py-1"
                                     />
                                 </div>
+
+                                {/* Offset X */}
                                 <div className="space-y-2">
-                                    <label className="text-xs lg:text-sm font-medium">
-                                        Offset X: {offsetX.toFixed(2)}
-                                    </label>
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-medium text-white/60">Offset X</label>
+                                        <span className="text-xs font-mono text-white/40">{offsetX.toFixed(2)}</span>
+                                    </div>
                                     <Slider
                                         min={-2}
                                         max={2}
                                         step={0.01}
                                         value={[offsetX]}
                                         onValueChange={(value) => setOffsetX(value[0])}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs lg:text-sm font-medium">
-                                        T-Shirt Color
-                                    </label>
-                                    <input
-                                        type="color"
-                                        value={tshirtColor}
-                                        onChange={(e) => dispatch(setTshirtColor(e.target.value))}
-                                        className="w-full h-10 rounded border cursor-pointer"
+                                        className="py-1"
                                     />
                                 </div>
                             </div>
                         </div>
-                    </Card>
+                    </div>
                 ) : (
                     <Button
                         variant="secondary"
@@ -230,6 +310,7 @@ export default function Home() {
                     <OrbitControls
                         enableZoom={true}
                         enablePan={true}
+                        enableRotate={true}
                         minDistance={10}
                         maxDistance={200}
                     />
@@ -238,6 +319,9 @@ export default function Home() {
                             texture={texture}
                             color={tshirtColor}
                             modelPath={assets[tshirtType as keyof typeof assets].model}
+                            scale={[modelScale, modelScale, modelScale]}
+                            position={assets[tshirtType as keyof typeof assets].position}
+                            normalMapPath={(assets[tshirtType as keyof typeof assets] as any).normalMap || null}
                         />
                     </Center>
                 </Canvas>

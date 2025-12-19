@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 interface EditorState {
-    tshirtType: 'regular' | 'oversized';
+    tshirtType: 'regular' | 'oversized' | 'hoodie' | 'sweatshirt';
     tshirtColor: string;
     canvasJson: object | null;
     isDirty: boolean; // Tracking if changes are unsaved
@@ -18,7 +18,7 @@ export const editorSlice = createSlice({
     name: 'editor',
     initialState,
     reducers: {
-        setTshirtType: (state, action: PayloadAction<'regular' | 'oversized'>) => {
+        setTshirtType: (state, action: PayloadAction<'regular' | 'oversized' | 'hoodie' | 'sweatshirt'>) => {
             state.tshirtType = action.payload;
             state.isDirty = true;
         },
