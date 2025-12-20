@@ -15,6 +15,7 @@ import { useDispatch } from "react-redux";
 const registerSchema = z.object({
   name: z.string().min(2, "Name is too short"),
   email: z.string().email("Invalid email"),
+  phone: z.string().min(10, "Enter a valid mobile number").max(15, "Number too long"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -41,15 +42,16 @@ export default function RegisterPage() {
       const res = await axios.post("/api/auth/register", {
         name: data.name,
         email: data.email,
+        phone: data.phone,
         password: data.password,
       });
 
       toast.success("Welcome to the Cult.");
       // dispatch(setCredentials(res.data)); // Save to Redux later
-      
+
       // Store token in localStorage for now (Simple method)
       localStorage.setItem("userInfo", JSON.stringify(res.data));
-      
+
       router.push("/");
     } catch (error: any) {
       toast.error(error.response?.data?.error || "Registration Failed");
@@ -66,9 +68,9 @@ export default function RegisterPage() {
           {/* Name */}
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Name</label>
-            <input 
+            <input
               {...register("name")}
-              className="w-full bg-black border border-zinc-700 p-3 text-white focus:border-red-600 outline-none transition"
+              className="w-full bg-black border border-zinc-700 p-3 text-white focus:border-red-600 outline-none transition rounded"
               placeholder="Your Name"
             />
             {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
@@ -77,19 +79,31 @@ export default function RegisterPage() {
           {/* Email */}
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Email</label>
-            <input 
+            <input
               {...register("email")}
               type="email"
-              className="w-full bg-black border border-zinc-700 p-3 text-white focus:border-red-600 outline-none transition"
+              className="w-full bg-black border border-zinc-700 p-3 text-white focus:border-red-600 outline-none transition rounded"
               placeholder="name@example.com"
             />
             {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
           </div>
 
+          {/* Phone */}
+          <div>
+            <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Mobile Number</label>
+            <input
+              {...register("phone")}
+              type="tel"
+              className="w-full bg-black border border-zinc-700 p-3 text-white focus:border-red-600 outline-none transition rounded"
+              placeholder="+91 9876543210"
+            />
+            {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone.message}</p>}
+          </div>
+
           {/* Password */}
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Password</label>
-            <input 
+            <input
               {...register("password")}
               type="password"
               className="w-full bg-black border border-zinc-700 p-3 text-white focus:border-red-600 outline-none transition"
@@ -101,7 +115,7 @@ export default function RegisterPage() {
           {/* Confirm Password */}
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Confirm Password</label>
-            <input 
+            <input
               {...register("confirmPassword")}
               type="password"
               className="w-full bg-black border border-zinc-700 p-3 text-white focus:border-red-600 outline-none transition"
@@ -110,8 +124,8 @@ export default function RegisterPage() {
             {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword.message}</p>}
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={isSubmitting}
             className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-12 mt-4 uppercase tracking-widest transition-colors flex items-center justify-center"
           >

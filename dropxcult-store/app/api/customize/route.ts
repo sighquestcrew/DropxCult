@@ -67,7 +67,9 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const where = user.isAdmin ? {} : { userId: user._id };
+    // ALWAYS filter by user ID - this is the user's personal dashboard
+    // Admin viewing all designs should use the admin panel, not this endpoint
+    const where = { userId: user._id };
 
     const requests = await prisma.customRequest.findMany({
       where,
@@ -77,9 +79,9 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' }
     });
 
-    // Also fetch 3D Designs
+    // Also fetch 3D Designs - only user's own designs
     const designs = await prisma.design.findMany({
-      where: user.isAdmin ? {} : { userId: user._id },
+      where: { userId: user._id },
       include: {
         user: { select: { name: true } }
       },

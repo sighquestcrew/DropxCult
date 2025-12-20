@@ -19,7 +19,7 @@ interface Product {
 export default function ShopPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [priceRange, setPriceRange] = useState([0, 5000]);
+  const [priceRange, setPriceRange] = useState([0, 2000]);
   const [gridCols, setGridCols] = useState(4);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -106,7 +106,7 @@ export default function ShopPage() {
                     <input
                       type="range"
                       min="0"
-                      max="5000"
+                      max="2000"
                       step="100"
                       value={priceRange[1]}
                       onChange={(e) => setPriceRange([0, parseInt(e.target.value)])}
@@ -176,7 +176,7 @@ export default function ShopPage() {
                 <input
                   type="range"
                   min="0"
-                  max="5000"
+                  max="2000"
                   step="100"
                   value={priceRange[1]}
                   onChange={(e) => setPriceRange([0, parseInt(e.target.value)])}

@@ -6,7 +6,7 @@ import { logAudit } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password } = await req.json();
+    const { name, email, phone, password } = await req.json();
 
     // 1. Check if user already exists
     const userExists = await prisma.user.findUnique({ where: { email } });
@@ -18,11 +18,24 @@ export async function POST(req: Request) {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 3. Create User
+    // 3. Generate unique username
+    const baseUsername = name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    let username = `${baseUsername}-${randomSuffix}`;
+
+    // Check if username exists, regenerate if needed
+    const existingUsername = await prisma.user.findUnique({ where: { username } });
+    if (existingUsername) {
+      username = `${baseUsername}-${Date.now().toString(36).slice(-4)}`;
+    }
+
+    // 4. Create User
     const user = await prisma.user.create({
       data: {
         name,
         email,
+        phone: phone || null,
+        username,
         password: hashedPassword,
       },
     });

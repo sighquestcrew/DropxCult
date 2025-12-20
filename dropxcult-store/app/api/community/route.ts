@@ -8,6 +8,7 @@ export async function GET(req: Request) {
     const filter = searchParams.get("filter") || "creators";
     const period = searchParams.get("period") || "alltime";
     const sort = searchParams.get("sort") || "latest";
+    const tab = searchParams.get("tab") || "foryou"; // foryou, following, trending
 
     // Get userId from auth header if available
     let userId: string | null = null;
@@ -23,17 +24,19 @@ export async function GET(req: Request) {
     // Calculate date range for period filter
     let dateFilter: Date | null = null;
     const now = new Date();
-    if (period === "weekly") {
+    if (period === "daily") {
+      dateFilter = new Date(now.getTime() - 24 * 60 * 60 * 1000); // Last 24 hours
+    } else if (period === "weekly") {
       dateFilter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     } else if (period === "monthly") {
       dateFilter = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    let leaderboard = [];
+    let leaderboard: any[] = [];
 
     if (filter === "creators") {
       // Rank creators by followers + designs approved
-      leaderboard = await prisma.user.findMany({
+      const creators = await prisma.user.findMany({
         where: {
           OR: [
             { designsApproved: { gt: 0 } },
@@ -55,6 +58,24 @@ export async function GET(req: Request) {
           royaltyEarnings: true
         }
       });
+
+      // Check follow status for each creator
+      if (userId) {
+        const followingIds = await prisma.follow.findMany({
+          where: {
+            followerId: userId,
+            followingId: { in: creators.map(c => c.id) }
+          },
+          select: { followingId: true }
+        });
+        const followingSet = new Set(followingIds.map(f => f.followingId));
+        leaderboard = creators.map(c => ({
+          ...c,
+          isFollowing: followingSet.has(c.id)
+        }));
+      } else {
+        leaderboard = creators.map(c => ({ ...c, isFollowing: false }));
+      }
     } else {
       // Rank by Purchases (Top Buyers)
       leaderboard = await prisma.user.findMany({
@@ -80,13 +101,27 @@ export async function GET(req: Request) {
       orderBy = [{ likesCount: 'desc' }, { createdAt: 'desc' }];
     }
 
+    // Get followed user IDs if tab is "following"
+    let followingUserIds: string[] = [];
+    if (tab === "following" && userId) {
+      const follows = await prisma.follow.findMany({
+        where: { followerId: userId },
+        select: { followingId: true }
+      });
+      followingUserIds = follows.map(f => f.followingId);
+    }
+
     // Fetch Public 3D Designs (from Design model)
+    const designWhere: any = {
+      isPublic: true,
+      status: "Accepted",
+      ...(dateFilter && { createdAt: { gte: dateFilter } }),
+      // If "following" tab, only show designs from followed users
+      ...(tab === "following" && userId && { userId: { in: followingUserIds } })
+    };
+
     const designs = await prisma.design.findMany({
-      where: {
-        isPublic: true,
-        status: "Accepted",
-        ...(dateFilter && { createdAt: { gte: dateFilter } })
-      },
+      where: designWhere,
       orderBy,
       take: 30,
       include: {

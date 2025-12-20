@@ -6,7 +6,9 @@ import { RootState } from "@/redux/store";
 import { logout } from "@/redux/slices/authSlice";
 import { ShoppingBag, User, LogOut, PenTool, Flame, UserCircle, Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+
+import { setHasAppNavigation } from "@/redux/slices/uiSlice";
 
 export default function Navbar() {
   const dispatch = useDispatch();
@@ -18,9 +20,14 @@ export default function Navbar() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const pathname = usePathname();
+
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    if (pathname !== "/") {
+      dispatch(setHasAppNavigation(true));
+    }
+  }, [pathname, dispatch]);
 
   const cartCount = items.reduce((acc, item) => acc + item.qty, 0);
 

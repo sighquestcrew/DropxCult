@@ -20,8 +20,8 @@ export default function AdminLoginPage() {
         setIsLoading(true);
 
         try {
-            // Use the store's API for login
-            const { data } = await axios.post(`${process.env.NEXT_PUBLIC_STORE_URL || 'http://localhost:3001'}/api/auth/login`, {
+            // Use internal API for login
+            const { data } = await axios.post(`/api/auth/login`, {
                 email,
                 password
             });

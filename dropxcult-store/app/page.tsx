@@ -23,7 +23,26 @@ interface Design {
   user: { name: string };
 }
 
+import { useRouter } from "next/navigation";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState } from "@/redux/store";
+import { setHasAppNavigation } from "@/redux/slices/uiSlice";
+
 export default function Home() {
+  const router = useRouter();
+  const dispatch = useDispatch();
+  const { userInfo } = useSelector((state: RootState) => state.auth);
+  // @ts-ignore
+  const { hasAppNavigation } = useSelector((state: RootState) => state.ui || {});
+
+  useEffect(() => {
+    // Only redirect if this is a "fresh" visit and not a navigation
+    if (userInfo && hasAppNavigation === false) {
+      dispatch(setHasAppNavigation(true)); // Mark as visited so redirect doesn't loop
+      router.push("/community");
+    }
+  }, [userInfo, hasAppNavigation, router, dispatch]);
+
   const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["products-home"],
     queryFn: async () => {

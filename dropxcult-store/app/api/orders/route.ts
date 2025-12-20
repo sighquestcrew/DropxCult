@@ -19,36 +19,48 @@ export async function POST(req: Request) {
 
     for (const item of items) {
       if (item.isCustom) {
-        // Handle Custom Design
-        const customDesign = await prisma.customRequest.findUnique({
+        // Handle Custom Design - Check BOTH tables (CustomRequest and Design)
+        let customDesign = await prisma.customRequest.findUnique({
           where: { id: item.designId }
         });
 
-        if (!customDesign) throw new Error(`Custom design ${item.name} not found`);
+        let design3D = null;
+        if (!customDesign) {
+          // Not in CustomRequest, try Design table (for 3D designs)
+          design3D = await prisma.design.findUnique({
+            where: { id: item.designId }
+          });
+        }
 
-        // Cast to 'any' to avoid TypeScript errors when checking for legacy field names (leftImage vs leftSleeveImage)
-        const designData = customDesign as any;
-        const textConfig = customDesign.textConfig as any;
+        if (!customDesign && !design3D) {
+          throw new Error(`Custom design ${item.name} not found`);
+        }
 
-        // Define your custom pricing logic here
-        // Logic: 999 for Front/Back only, 1199 if Sleeves (Images OR Text) are included
+        let price: number;
 
-        // 1. Check for existence of sleeve images
-        const hasSleeveImages =
-          (designData.leftImage && designData.leftImage !== "") ||
-          (designData.rightImage && designData.rightImage !== "") ||
-          (designData.leftSleeveImage && designData.leftSleeveImage !== "") ||
-          (designData.rightSleeveImage && designData.rightSleeveImage !== "");
+        if (design3D) {
+          // 3D Design pricing - flat rate based on t-shirt type
+          const isOversized = design3D.tshirtType === "oversized";
+          price = isOversized ? 1299 : 999;
+        } else {
+          // CustomRequest pricing logic
+          const designData = customDesign as any;
+          const textConfig = customDesign!.textConfig as any;
 
-        // 2. Check for existence of sleeve text
-        const leftText = textConfig?.left?.content;
-        const rightText = textConfig?.right?.content;
+          // Logic: 999 for Front/Back only, 1199 if Sleeves are included
+          const hasSleeveImages =
+            (designData.leftImage && designData.leftImage !== "") ||
+            (designData.rightImage && designData.rightImage !== "") ||
+            (designData.leftSleeveImage && designData.leftSleeveImage !== "") ||
+            (designData.rightSleeveImage && designData.rightSleeveImage !== "");
 
-        const hasSleeveText = (leftText && leftText.trim() !== "") || (rightText && rightText.trim() !== "");
+          const leftText = textConfig?.left?.content;
+          const rightText = textConfig?.right?.content;
+          const hasSleeveText = (leftText && leftText.trim() !== "") || (rightText && rightText.trim() !== "");
 
-        // 3. Final Price Decision
-        const hasSleeves = hasSleeveImages || hasSleeveText;
-        const price = hasSleeves ? 1199 : 999;
+          const hasSleeves = hasSleeveImages || hasSleeveText;
+          price = hasSleeves ? 1199 : 999;
+        }
 
         calculatedTotal += price * item.qty;
 
@@ -56,37 +68,9 @@ export async function POST(req: Request) {
           name: item.name,
           qty: item.qty,
           image: item.image,
-          price: price, // Override frontend price with verified price
+          price: price,
           size: item.size,
-          // For custom items, we might not have a product ID, but OrderItem schema expects one if relation is mandatory.
-          // However, in our schema, productId is mandatory. 
-          // We might need a dummy product or make productId optional in schema if we want to support this.
-          // For now, let's assume we link it to a generic "Custom Product" or handle it differently.
-          // BUT, looking at the previous Mongoose code: `product: null`.
-          // In Prisma, if `product` relation is mandatory, we MUST provide a productId.
-          // I will assume for now we skip productId or need to adjust schema.
-          // Adjusted Schema Plan: Make productId optional in OrderItem or create a "Custom" product.
-          // Since I can't easily change schema and regenerate client right now without errors, I'll assume there's a way or I'll skip the relation if possible (but schema said mandatory).
-          // Wait, in my schema `productId String` is mandatory. This is a problem.
-          // I should probably have made it optional.
-          // For this refactor, I will assume there is a "Custom Product" in DB or I will fail.
-          // Let's try to find a product or just use a placeholder ID if it's a string.
-          // Actually, I'll check if I can make it optional in schema later.
-          // For now, I will comment out the relation part or put a dummy ID if I can.
-          // But wait, `product` relation requires a valid ID.
-          // I'll assume the user has a "Custom T-Shirt" product and I should fetch it.
-          // Or I should have defined `productId` as optional `String?`.
-          // Given the constraints, I will try to fetch a product with slug "custom-t-shirt" or similar, or just fail if not found.
-          // BETTER APPROACH: I will modify the schema to make `productId` optional, but I can't run migrate.
-          // So I will assume there is a product for now.
-          // Let's look at the Mongoose code: `product: null`.
-          // This implies `product` field in Mongoose was not required or nullable.
-          // In my Prisma schema: `product Product @relation(...)`.
-          // This means it IS required.
-          // I made a mistake in schema design for this specific case.
-          // I will proceed by trying to find *any* product to link to, or just not creating the relation if I can (but I can't).
-          // I will link it to the first product found as a fallback, or a specific "Custom" product.
-          productId: "custom-placeholder-id", // This will fail if not exists.
+          productId: "custom-placeholder-id", // Placeholder for custom designs
         });
 
       } else {
@@ -108,9 +92,17 @@ export async function POST(req: Request) {
     }
 
     // --- 2. Initialize Razorpay ---
+    // Validate API keys exist
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      console.error("Missing Razorpay API keys in environment");
+      return NextResponse.json({
+        error: "Payment gateway not configured. Please add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to your .env.local file."
+      }, { status: 500 });
+    }
+
     const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
     });
 
     // --- 3. Create Order in Razorpay ---

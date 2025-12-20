@@ -76,16 +76,70 @@ export async function GET(req: Request) {
       take: 5
     });
 
-    // 4. Get User Designs
-    const userDesigns = await prisma.customRequest.findMany({
+    // 4. Get User Designs (Both 2D CustomRequests and 3D Designs)
+    const customRequests = await prisma.customRequest.findMany({
       where: { userId: user.id },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        createdAt: true,
+        frontImage: true,
+        backImage: true,
+        // Map fields to match unified design interface
+        // 2D designs don't have 'name' usually
+      }
     });
 
+    const designs3D = await prisma.design.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        createdAt: true,
+        previewImage: true,
+        tshirtColor: true,
+        likesCount: true,
+        isPublic: true,
+        hasRoyaltyOffer: true, // Needed for Creator badge
+      }
+    });
+
+    // Check if user is a "Creator" (has at least one design with royalty)
+    const isCreator = designs3D.some(d => d.hasRoyaltyOffer === true);
+
+    // Unified Design Interface for Frontend
+    const unifiedDesigns = [
+      ...customRequests.map(d => ({
+        id: d.id,
+        type: '2D',
+        name: d.type || "Custom Request",
+        status: d.status,
+        createdAt: d.createdAt,
+        previewImage: d.frontImage, // Use front image as preview
+        frontImage: d.frontImage,
+        backImage: d.backImage,
+        isPublic: false // 2D requests are private by default logic for now
+      })),
+      ...designs3D.map(d => ({
+        id: d.id,
+        type: '3D',
+        name: d.name || "Untitled Design",
+        status: d.status,
+        createdAt: d.createdAt,
+        previewImage: d.previewImage,
+        likesCount: d.likesCount,
+        isPublic: d.isPublic
+      }))
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
     return NextResponse.json({
-      user: userWithoutPassword,
+      user: { ...userWithoutPassword, isCreator }, // Add isCreator flag
       orders: recentOrders,
-      designs: userDesigns
+      designs: unifiedDesigns
     });
   } catch (error) {
     console.error("Profile GET Error:", error);
@@ -99,12 +153,13 @@ export async function PUT(req: Request) {
     const decoded = getUser(req);
     if (!decoded) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { name, bio, image, email, password } = await req.json();
+    const { name, bio, image, banner, email, password } = await req.json();
 
     const dataToUpdate: any = {};
     if (name) dataToUpdate.name = name;
     if (bio) dataToUpdate.bio = bio;
     if (image) dataToUpdate.image = image;
+    if (banner !== undefined) dataToUpdate.banner = banner; // Can be set to null/empty to remove
     if (email) dataToUpdate.email = email;
 
     if (password && password.trim() !== "") {
@@ -123,6 +178,7 @@ export async function PUT(req: Request) {
       email: updatedUser.email,
       isAdmin: updatedUser.isAdmin,
       image: updatedUser.image,
+      banner: updatedUser.banner,
       bio: updatedUser.bio,
       rank: updatedUser.rank,
     });

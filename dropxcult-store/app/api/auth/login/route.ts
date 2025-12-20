@@ -10,6 +10,7 @@ const ALLOWED_ORIGINS = [
   process.env.NEXT_PUBLIC_BASE_URL,
   process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : null,
   process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : null,
+  process.env.NODE_ENV === 'development' ? 'http://localhost:3002' : null, // Admin Panel
 ].filter(Boolean) as string[];
 
 const getCorsHeaders = (origin: string | null) => {
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
         _id: user.id,
         name: user.name,
         email: user.email,
+        image: user.image, // Include profile image for navbar
         isAdmin: user.isAdmin,
         token,
       }, { headers: getCorsHeaders(origin) });

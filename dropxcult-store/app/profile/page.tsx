@@ -2,14 +2,15 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Loader2, Package, Palette, Wallet, Edit3, Trash2 } from "lucide-react";
+import { Loader2, Package, Palette, Wallet, Edit3, Trash2, Users, Heart, Crown, MapPin, Calendar, Link as LinkIcon, Settings, LogOut, ShoppingBag, Award, TrendingUp, Eye, MessageCircle, Share2, Camera, Upload, Sparkles } from "lucide-react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/redux/store";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { setCredentials, logout } from "@/redux/slices/authSlice";
 import dayjs from "dayjs";
+import Link from "next/link";
 
 export default function ProfilePage() {
   const { userInfo } = useSelector((state: RootState) => state.auth);
@@ -17,6 +18,22 @@ export default function ProfilePage() {
   const dispatch = useDispatch();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState<"designs" | "orders" | "liked">("designs");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showFollowModal, setShowFollowModal] = useState<"followers" | "following" | null>(null);
+  const [designFilter, setDesignFilter] = useState<"all" | "public" | "draft">("all");
+
+  const filterDesigns = (list: any[]) => {
+    if (!list) return [];
+    if (designFilter === "all") return list;
+    // Show Accepted AND Public designs in "Community" tab (Strict match with community feed)
+    if (designFilter === "public") return list.filter((d) => d.status === "Accepted" && d.isPublic === true);
+    // Show everything else in "Draft" tab
+    if (designFilter === "draft") return list.filter((d) => !(d.status === "Accepted" && d.isPublic === true));
+    return list;
+  };
 
   useEffect(() => {
     if (!userInfo) router.push("/login");
@@ -31,6 +48,30 @@ export default function ProfilePage() {
       return data;
     },
     enabled: !!userInfo,
+  });
+
+  // Fetch followers/following list
+  const { data: followData, isLoading: followLoading } = useQuery({
+    queryKey: ["my-follow-list", showFollowModal],
+    queryFn: async () => {
+      const { data } = await axios.get(`/api/users/${userInfo?._id}/followers?type=${showFollowModal}`, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+      return data;
+    },
+    enabled: !!showFollowModal && !!userInfo?._id,
+  });
+
+  // Fetch Liked Designs
+  const { data: likedDesigns, isLoading: likedLoading } = useQuery({
+    queryKey: ["liked-designs"],
+    queryFn: async () => {
+      const { data } = await axios.get("/api/user/liked", {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+      return data;
+    },
+    enabled: !!userInfo && activeTab === "liked",
   });
 
   const profile = data?.user;
@@ -66,7 +107,6 @@ export default function ProfilePage() {
     },
   });
 
-  // Delete Design Mutation
   const deleteDesignMutation = useMutation({
     mutationFn: async (id: string) => {
       await axios.delete(`/api/customize/${id}`, {
@@ -80,6 +120,23 @@ export default function ProfilePage() {
     onError: () => toast.error("Failed to delete design"),
   });
 
+  const publishMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await axios.post(`/api/user/design/${id}/publish`, {}, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+    },
+    onSuccess: () => {
+      toast.success("Design published to community!");
+      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+    },
+    onError: () => toast.error("Failed to publish design"),
+  });
+
+  // ... (inside the design card render loop)
+
+
+
   const handleWithdraw = () => {
     if (profile?.royaltyPoints < 500) {
       toast.error("Minimum withdrawal is 500 Points");
@@ -88,102 +145,238 @@ export default function ProfilePage() {
     toast.success("Withdrawal request sent!");
   };
 
-  if (isLoading || !profile) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-red-600" /></div>;
+  const handleLogout = () => {
+    dispatch(logout());
+    router.push("/");
+  };
 
-  // Rank Colors
+  if (isLoading || !profile) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <Loader2 className="animate-spin text-red-600" size={32} />
+    </div>
+  );
+
   const getRankColor = (rank: string) => {
     switch (rank) {
-      case "Founder": return "text-yellow-500 border-yellow-500 bg-yellow-900/30 shadow-[0_0_15px_rgba(234,179,8,0.5)]"; // Added Founder style
-      case "Elder": return "text-purple-500 border-purple-500 bg-purple-900/30 shadow-[0_0_15px_rgba(168,85,247,0.5)]";
-      case "Zealot": return "text-red-500 border-red-500 bg-red-900/30 shadow-[0_0_15px_rgba(239,68,68,0.5)]";
-      case "Apostle": return "text-orange-500 border-orange-500 bg-orange-900/30";
-      case "Disciple": return "text-blue-500 border-blue-500 bg-blue-900/30";
-      default: return "text-gray-400 border-gray-600 bg-gray-800";
+      case "Founder": return "text-yellow-500 bg-yellow-500/10 border-yellow-500/30";
+      case "Elder": return "text-purple-500 bg-purple-500/10 border-purple-500/30";
+      case "Zealot": return "text-red-500 bg-red-500/10 border-red-500/30";
+      case "Apostle": return "text-orange-500 bg-orange-500/10 border-orange-500/30";
+      case "Disciple": return "text-blue-500 bg-blue-500/10 border-blue-500/30";
+      default: return "text-gray-400 bg-gray-500/10 border-gray-500/30";
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Accepted": return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "Pending": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "Rejected": return "bg-red-500/20 text-red-400 border-red-500/30";
+      default: return "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 sm:p-6 md:p-10">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+    <div className="min-h-screen bg-black text-white">
+      <div className="max-w-4xl mx-auto">
 
-        {/* LEFT COLUMN: Profile Card */}
-        <div className="md:col-span-1 space-y-6">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center relative overflow-hidden">
-            <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold uppercase border ${getRankColor(profile.rank)}`}>
-              {profile.rank}
+        {/* Cover/Banner - Editable */}
+        <div className="h-32 sm:h-48 relative group cursor-pointer" onClick={() => document.getElementById('bannerFileInput')?.click()}>
+          {profile?.banner ? (
+            <img src={profile.banner} alt="Banner" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-r from-red-900/50 via-purple-900/30 to-zinc-900">
+              <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
             </div>
-
-            <div className="h-28 w-28 rounded-full bg-zinc-800 mx-auto mb-4 border-4 border-zinc-800 flex items-center justify-center overflow-hidden relative group">
-              {profile.image ? (
-                <img src={profile.image} className="h-full w-full object-cover" />
-              ) : (
-                // FIX: Added safe access (?.) and fallback for charAt
-                <span className="text-4xl font-bold text-gray-600">{profile.name?.charAt(0) || "U"}</span>
-              )}
+          )}
+          {/* Overlay on hover */}
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <div className="flex items-center gap-2 text-white">
+              <Camera size={24} />
+              <span className="font-medium">Change Banner</span>
             </div>
+          </div>
+          {/* Hidden file input */}
+          <input
+            type="file"
+            id="bannerFileInput"
+            accept="image/*"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
 
-            <h1 className="text-2xl font-bold">{profile.name}</h1>
-            <p className="text-gray-400 text-sm mb-4">{profile.email}</p>
-            <p className="text-gray-300 italic text-sm px-4 border-l-2 border-red-900 mx-auto max-w-[80%]">
-              "{profile.bio}"
-            </p>
+              try {
+                const formData = new FormData();
+                formData.append('file', file);
 
+                toast.loading('Uploading banner...');
+                const { data } = await axios.post('/api/upload', formData, {
+                  headers: {
+                    'Content-Type': 'multipart/form-data',
+                    Authorization: `Bearer ${userInfo?.token}`
+                  }
+                });
+
+                // Update profile with new banner
+                await axios.put('/api/user/profile', { banner: data.url }, {
+                  headers: { Authorization: `Bearer ${userInfo?.token}` }
+                });
+
+                toast.dismiss();
+                toast.success('Banner updated!');
+                queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+              } catch (error) {
+                toast.dismiss();
+                toast.error('Failed to upload banner');
+              }
+            }}
+          />
+        </div>
+
+        {/* Profile Header */}
+        <div className="relative px-4 pb-4 border-b border-zinc-800">
+          {/* Avatar */}
+          <div className="absolute -top-16 sm:-top-20 left-4">
+            <div className="h-28 w-28 sm:h-36 sm:w-36 rounded-full bg-gradient-to-br from-red-600 to-purple-600 p-1">
+              <div className="h-full w-full rounded-full bg-black border-4 border-black overflow-hidden flex items-center justify-center">
+                {profile.image ? (
+                  <img src={profile.image} className="h-full w-full object-cover" alt={profile.name} />
+                ) : (
+                  <span className="text-4xl sm:text-5xl font-bold text-gray-600">
+                    {profile.name?.charAt(0) || "U"}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-2 pt-3 sm:pt-4">
             <button
               onClick={() => setIsEditing(!isEditing)}
-              className="mt-6 w-full bg-zinc-800 hover:bg-zinc-700 py-2 rounded text-sm font-bold flex items-center justify-center gap-2 transition"
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-sm rounded-full border border-zinc-700 transition flex items-center gap-2"
             >
-              <Edit3 size={16} /> Edit Profile
+              <Settings size={16} />
+              <span className="hidden sm:inline">Edit Profile</span>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-zinc-800 hover:bg-red-600/20 hover:text-red-500 hover:border-red-500/50 text-gray-400 text-sm rounded-full border border-zinc-700 transition"
+              title="Logout"
+            >
+              <LogOut size={16} />
             </button>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Wallet className="text-green-500" /> Cult Vault
-            </h3>
-            <div className="flex justify-between items-end mb-2">
-              <span className="text-gray-400">Royalty Points</span>
-              <span className="text-3xl font-bold text-white">{profile.royaltyPoints}</span>
+          {/* Profile Info */}
+          <div className="mt-6 sm:mt-8">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold">{profile.name}</h1>
+              {profile.isCreator && (
+                <span className="px-2 py-0.5 text-xs font-bold rounded-full border text-cyan-500 bg-cyan-500/10 border-cyan-500/30 flex items-center gap-1">
+                  <Sparkles size={10} />
+                  Creator
+                </span>
+              )}
+              <span className={`px-2 py-0.5 text-xs font-bold rounded-full border ${getRankColor(profile.rank)}`}>
+                <Crown size={10} className="inline mr-1" />
+                {profile.rank}
+              </span>
             </div>
-            <p className="text-xs text-gray-500 mb-6">1 Point = ₹1.00</p>
+            <p className="text-gray-500 text-sm">@{profile.name?.toLowerCase().replace(/\s/g, '')}</p>
 
-            <button
-              onClick={handleWithdraw}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded transition"
-            >
-              Withdraw Funds
-            </button>
+            {profile.bio && (
+              <p className="mt-3 text-gray-300 text-sm max-w-lg">{profile.bio}</p>
+            )}
+
+            {/* Meta Info */}
+            <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-500">
+              <span className="flex items-center gap-1">
+                <Calendar size={14} />
+                Joined {dayjs(profile.createdAt).format("MMM YYYY")}
+              </span>
+            </div>
+
+            {/* Stats */}
+            <div className="flex gap-6 mt-4 text-sm">
+              <button onClick={() => setShowFollowModal("followers")} className="hover:underline">
+                <span className="font-bold text-white">{profile.followersCount || 0}</span>
+                <span className="text-gray-500 ml-1">Followers</span>
+              </button>
+              <button onClick={() => setShowFollowModal("following")} className="hover:underline">
+                <span className="font-bold text-white">{profile.followingCount || 0}</span>
+                <span className="text-gray-500 ml-1">Following</span>
+              </button>
+              <div>
+                <span className="font-bold text-white">{designs?.length || 0}</span>
+                <span className="text-gray-500 ml-1">Designs</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Dashboard */}
-        <div className="md:col-span-2 space-y-8">
-
-          {/* 1. Stats Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-zinc-900 p-6 rounded border border-zinc-800 flex items-center gap-4">
-              <div className="h-12 w-12 bg-blue-900/30 rounded-full flex items-center justify-center text-blue-500">
-                <Package size={24} />
+        {/* Followers/Following Modal */}
+        {showFollowModal && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowFollowModal(null)}>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+                <h2 className="text-lg font-bold capitalize">{showFollowModal}</h2>
+                <button onClick={() => setShowFollowModal(null)} className="text-gray-500 hover:text-white text-xl">✕</button>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{profile.ordersCount}</p>
-                <p className="text-xs text-gray-400 uppercase">Orders</p>
-              </div>
-            </div>
-            <div className="bg-zinc-900 p-6 rounded border border-zinc-800 flex items-center gap-4">
-              <div className="h-12 w-12 bg-purple-900/30 rounded-full flex items-center justify-center text-purple-500">
-                <Palette size={24} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{profile.designsApproved}</p>
-                <p className="text-xs text-gray-400 uppercase">Designs Approved</p>
+              <div className="overflow-y-auto max-h-[60vh]">
+                {followLoading ? (
+                  <div className="p-8 text-center">
+                    <Loader2 className="animate-spin mx-auto text-gray-500" size={24} />
+                  </div>
+                ) : followData?.users?.length > 0 ? (
+                  <div className="divide-y divide-zinc-800">
+                    {followData.users.map((user: any) => (
+                      <Link
+                        key={user.id}
+                        href={`/user/${user.id}`}
+                        onClick={() => setShowFollowModal(null)}
+                        className="flex items-center gap-3 p-4 hover:bg-zinc-800 transition"
+                      >
+                        <div className="h-12 w-12 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
+                          {user.image ? (
+                            <img src={user.image} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-600">
+                              {user.name?.charAt(0) || "U"}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold truncate">{user.name}</p>
+                          <p className="text-sm text-gray-500">@{user.username || user.name?.toLowerCase().replace(/\s/g, '')}</p>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full border ${getRankColor(user.rank)}`}>
+                          <Crown size={10} className="inline mr-1" />
+                          {user.rank}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-gray-500">
+                    <Users size={32} className="mx-auto mb-2 opacity-50" />
+                    <p>No {showFollowModal} yet</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
+        )}
 
-          {/* 2. Edit Form */}
-          {isEditing && (
-            <div className="bg-zinc-900 border border-zinc-800 p-6 rounded animate-in fade-in slide-in-from-top-4">
-              <h3 className="font-bold mb-4 text-red-500">Update Identity</h3>
+        {/* Edit Profile Modal */}
+        {isEditing && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setIsEditing(false)}>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+                <h2 className="text-lg font-bold">Edit Profile</h2>
+                <button onClick={() => setIsEditing(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
+              </div>
               <form onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
@@ -193,102 +386,376 @@ export default function ProfilePage() {
                   return;
                 }
                 updateMutation.mutate(data);
-              }} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Name</label>
-                    <input name="name" defaultValue={profile.name} className="w-full bg-black border border-zinc-700 p-2 rounded text-white" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Email</label>
-                    <input name="email" defaultValue={profile.email} className="w-full bg-black border border-zinc-700 p-2 rounded text-white" />
-                  </div>
+              }} className="p-4 space-y-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Name</label>
+                  <input name="name" defaultValue={profile.name} className="w-full bg-black border border-zinc-700 p-3 rounded-lg text-white focus:border-blue-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Email</label>
+                  <input name="email" defaultValue={profile.email} className="w-full bg-black border border-zinc-700 p-3 rounded-lg text-white focus:border-blue-500 focus:outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Bio</label>
-                  <textarea name="bio" defaultValue={profile.bio} className="w-full bg-black border border-zinc-700 p-2 rounded text-white" rows={2} />
+                  <textarea name="bio" defaultValue={profile.bio} className="w-full bg-black border border-zinc-700 p-3 rounded-lg text-white focus:border-blue-500 focus:outline-none" rows={3} />
                 </div>
+                {/* Profile Image Upload */}
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Profile Image URL</label>
-                  <input name="image" defaultValue={profile.image} className="w-full bg-black border border-zinc-700 p-2 rounded text-white" placeholder="https://..." />
+                  <label className="block text-xs text-gray-500 mb-2">Profile Image</label>
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <div className="h-20 w-20 rounded-full bg-zinc-800 overflow-hidden border-2 border-zinc-700">
+                        {(imagePreview || profile.image) ? (
+                          <img src={imagePreview || profile.image} className="h-full w-full object-cover" alt="Preview" />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center text-gray-600">
+                            <Camera size={24} />
+                          </div>
+                        )}
+                      </div>
+                      {uploadingImage && (
+                        <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                          <Loader2 size={20} className="animate-spin text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+
+                          // Preview
+                          const reader = new FileReader();
+                          reader.onload = (e) => setImagePreview(e.target?.result as string);
+                          reader.readAsDataURL(file);
+
+                          // Upload
+                          setUploadingImage(true);
+                          try {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            const { data } = await axios.post('/api/upload', formData, {
+                              headers: { Authorization: `Bearer ${userInfo?.token}` }
+                            });
+                            setImagePreview(data.url);
+                            toast.success('Image uploaded!');
+                          } catch (err) {
+                            toast.error('Upload failed');
+                            setImagePreview(null);
+                          } finally {
+                            setUploadingImage(false);
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingImage}
+                        className="w-full py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-white text-sm rounded-lg border border-zinc-700 flex items-center justify-center gap-2 transition disabled:opacity-50"
+                      >
+                        <Upload size={16} />
+                        {uploadingImage ? 'Uploading...' : 'Choose Image'}
+                      </button>
+                      <p className="text-[10px] text-gray-500">JPG, PNG, GIF, WebP. Max 5MB</p>
+                    </div>
+                  </div>
+                  <input type="hidden" name="image" value={imagePreview || profile.image || ''} />
                 </div>
 
-                <div className="border-t border-zinc-800 pt-4 mt-4">
-                  <p className="text-xs text-gray-500 mb-2">Change Password (Leave blank to keep current)</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <input name="password" type="password" placeholder="New Password" className="w-full bg-black border border-zinc-700 p-2 rounded text-white" />
-                    <input name="confirmPassword" type="password" placeholder="Confirm New Password" className="w-full bg-black border border-zinc-700 p-2 rounded text-white" />
+                <div className="border-t border-zinc-800 pt-4">
+                  <p className="text-xs text-gray-500 mb-3">Change Password (leave blank to keep current)</p>
+                  <div className="space-y-3">
+                    <input name="password" type="password" placeholder="New Password" className="w-full bg-black border border-zinc-700 p-3 rounded-lg text-white focus:border-blue-500 focus:outline-none" />
+                    <input name="confirmPassword" type="password" placeholder="Confirm Password" className="w-full bg-black border border-zinc-700 p-3 rounded-lg text-white focus:border-blue-500 focus:outline-none" />
                   </div>
                 </div>
 
-                <div className="flex justify-between gap-2 mt-4">
-                  <button type="button" onClick={() => { if (confirm("Are you sure? This cannot be undone.")) deleteMutation.mutate() }} className="text-red-600 text-xs flex items-center gap-1 hover:underline"><Trash2 size={12} /> Delete Account</button>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => setIsEditing(false)} className="px-4 py-2 text-sm text-gray-400">Cancel</button>
-                    <button type="submit" className="px-6 py-2 bg-white text-black font-bold rounded text-sm hover:bg-gray-200">Save Changes</button>
-                  </div>
+                <div className="flex justify-between items-center pt-4 border-t border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => { if (confirm("Delete your account? This cannot be undone.")) deleteMutation.mutate() }}
+                    className="text-red-500 text-sm flex items-center gap-1 hover:underline"
+                  >
+                    <Trash2 size={14} /> Delete Account
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updateMutation.isPending}
+                    className="px-6 py-2 bg-white text-black font-bold rounded-full hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    {updateMutation.isPending ? "Saving..." : "Save"}
+                  </button>
                 </div>
               </form>
             </div>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="border-b border-zinc-800 sticky top-0 bg-black/80 backdrop-blur-md z-30">
+          <div className="flex">
+            {[
+              { id: "designs", label: "Designs", icon: Palette },
+              { id: "orders", label: "Orders", icon: ShoppingBag },
+              { id: "liked", label: "Liked", icon: Heart }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex-1 py-4 text-sm font-semibold transition-colors relative hover:bg-zinc-900 flex items-center justify-center gap-2 ${activeTab === tab.id ? "text-white" : "text-gray-500"
+                  }`}
+              >
+                <tab.icon size={16} />
+                {tab.label}
+                {activeTab === tab.id && (
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-red-500 rounded-full" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="p-4">
+
+          {/* Designs Tab */}
+          {activeTab === "designs" && (
+            <div>
+              {/* Royalty Card */}
+              <div className="bg-gradient-to-r from-green-900/30 to-emerald-900/20 border border-green-500/20 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="text-green-500" size={20} />
+                    <span className="font-bold text-green-400">Cult Vault</span>
+                  </div>
+                  <span className="text-xs text-gray-500">1 Point = ₹1</span>
+                </div>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-white">{profile.royaltyPoints || 0}</p>
+                    <p className="text-xs text-gray-400">Royalty Points</p>
+                  </div>
+                  <button
+                    onClick={handleWithdraw}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold text-sm rounded-lg transition"
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              </div>
+
+              {/* Design Filters */}
+              <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                {["all", "public", "draft"].map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setDesignFilter(filter as any)}
+                    className={`px-3 py-1 text-xs font-bold rounded-full capitalize transition ${designFilter === filter
+                      ? "bg-white text-black"
+                      : "bg-zinc-800 text-gray-400 hover:bg-zinc-700"
+                      }`}
+                  >
+                    {filter === "public" ? "Community" : filter}
+                  </button>
+                ))}
+              </div>
+
+              {/* Designs Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {filterDesigns(designs)?.map((design: any) => (
+                  <div key={design.id} className="group relative bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:border-red-500/50 transition">
+                    <div className="aspect-square bg-black">
+                      {design.previewImage || design.frontImage ? (
+                        <img
+                          src={design.previewImage || design.frontImage}
+                          className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"
+                          alt={design.name || "Design"}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-700">
+                          <Palette size={32} />
+                        </div>
+                      )}
+                    </div>
+                    {/* Status Badge */}
+                    {(design.status === "Accepted" || design.isPublic) && (
+                      <div className="absolute top-2 right-2 bg-green-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                        Community
+                      </div>
+                    )}
+                    <div className="p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-sm font-bold truncate">{design.name || `Design`}</p>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getStatusColor(design.status)}`}>
+                          {design.status}
+                        </span>
+                      </div>
+
+                      {/* Publish Button for Accepted but Private Designs */}
+                      {design.status === "Accepted" && !design.isPublic && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (confirm("Post this design to the community?")) {
+                              publishMutation.mutate(design.id);
+                            }
+                          }}
+                          disabled={publishMutation.isPending}
+                          className="w-full mt-2 mb-2 py-1 text-xs font-bold bg-green-600 hover:bg-green-700 text-white rounded transition flex items-center justify-center gap-1"
+                        >
+                          <Share2 size={12} />
+                          Post to Community
+                        </button>
+                      )}
+
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>{dayjs(design.createdAt).format("DD MMM")}</span>
+                        <button
+                          onClick={() => { if (confirm("Delete?")) deleteDesignMutation.mutate(design.id) }}
+                          className="text-gray-500 hover:text-red-500 transition p-1"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {/* Create New Design Card */}
+                <Link href="/customize" className="group flex flex-col items-center justify-center aspect-square bg-zinc-900 border border-dashed border-zinc-700 rounded-xl hover:border-red-500 hover:bg-zinc-800/50 transition">
+                  <div className="h-12 w-12 rounded-full bg-zinc-800 group-hover:bg-red-500/20 flex items-center justify-center mb-2 transition">
+                    <Palette size={24} className="text-gray-500 group-hover:text-red-500 transition" />
+                  </div>
+                  <span className="text-sm text-gray-500 group-hover:text-white transition">Create New</span>
+                </Link>
+              </div>
+
+              {designs?.length === 0 && (
+                <div className="text-center py-12">
+                  <Palette size={48} className="mx-auto mb-4 text-gray-700" />
+                  <p className="text-gray-500">No designs yet. Start creating!</p>
+                  <Link href="/customize" className="inline-block mt-4 px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full transition">
+                    Create Design
+                  </Link>
+                </div>
+              )}
+            </div>
           )}
 
-          {/* 3. Order History */}
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded">
-            <h3 className="font-bold mb-4 text-gray-300">Recent Orders</h3>
-            <div className="space-y-2">
+          {/* Orders Tab */}
+          {activeTab === "orders" && (
+            <div className="space-y-3">
               {orders?.map((order: any) => (
-                <div key={order.id} className="flex justify-between items-center p-3 bg-black/50 rounded border border-zinc-800">
-                  <div>
-                    <p className="text-sm font-bold text-white">Order #{order.id.substring(0, 6)}</p>
-                    <p className="text-xs text-gray-500">{dayjs(order.createdAt).format("DD MMM YYYY")}</p>
+                <div key={order.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-white">Order #{order.id.substring(0, 8)}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">{dayjs(order.createdAt).format("DD MMM YYYY, hh:mm A")}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-lg">₹{order.totalPrice}</p>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${order.isPaid
+                        ? "bg-green-500/20 text-green-400"
+                        : "bg-yellow-500/20 text-yellow-400"
+                        }`}>
+                        {order.isPaid ? "Paid" : "Pending"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold">₹{order.totalPrice}</p>
-                    <span className={`text-[10px] uppercase font-bold ${order.isPaid ? "text-green-500" : "text-red-500"}`}>
-                      {order.isPaid ? "Paid" : "Pending"}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {orders?.length === 0 && <p className="text-sm text-gray-600 italic">No orders yet.</p>}
-            </div>
-          </div>
-
-          {/* 4. My Designs */}
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded">
-            <h3 className="font-bold mb-4 text-gray-300">My Artifacts</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {designs?.map((design: any) => (
-                <div key={design.id} className="aspect-square bg-black rounded border border-zinc-800 overflow-hidden relative group">
-                  {Array.isArray(design.layers) && design.layers.find((l: any) => l.type === 'image') ? (
-                    <img src={design.layers.find((l: any) => l.type === 'image').content} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-700 text-xs">
-                      {design.frontImage ? (
-                        <img src={design.frontImage} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition" />
-                      ) : "Text Only"}
+                  {order.orderItems?.length > 0 && (
+                    <div className="mt-3 flex gap-2 overflow-x-auto">
+                      {order.orderItems.slice(0, 4).map((item: any, i: number) => (
+                        <div key={i} className="w-12 h-12 bg-zinc-800 rounded flex-shrink-0 overflow-hidden">
+                          {item.image && <img src={item.image} className="w-full h-full object-cover" alt="" />}
+                        </div>
+                      ))}
+                      {order.orderItems.length > 4 && (
+                        <div className="w-12 h-12 bg-zinc-800 rounded flex-shrink-0 flex items-center justify-center text-xs text-gray-500">
+                          +{order.orderItems.length - 4}
+                        </div>
+                      )}
                     </div>
                   )}
-                  <div className="absolute bottom-0 w-full bg-black/80 p-1 text-[10px] text-center text-gray-400 flex justify-between items-center px-2">
-                    <span>{design.status}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (confirm("Delete this design?")) deleteDesignMutation.mutate(design.id);
-                      }}
-                      className="text-red-500 hover:text-red-400"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
                 </div>
               ))}
-              {designs?.length === 0 && <p className="text-sm text-gray-600 italic col-span-4">No designs created.</p>}
-            </div>
-          </div>
 
+              {orders?.length === 0 && (
+                <div className="text-center py-12">
+                  <ShoppingBag size={48} className="mx-auto mb-4 text-gray-700" />
+                  <p className="text-gray-500">No orders yet</p>
+                  <Link href="/shop" className="inline-block mt-4 px-6 py-2 bg-white text-black font-bold rounded-full hover:bg-gray-200 transition">
+                    Browse Shop
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Liked Tab */}
+          {activeTab === "liked" && (
+            <div>
+              {likedLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="animate-spin text-red-500" size={32} />
+                </div>
+              ) : likedDesigns?.length === 0 ? (
+                <div className="text-center py-12">
+                  <Heart size={48} className="mx-auto mb-4 text-gray-700" />
+                  <p className="text-gray-500">Liked designs will appear here</p>
+                  <Link href="/community" className="inline-block mt-4 px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full transition">
+                    Explore Community
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {likedDesigns?.map((design: any) => (
+                    <Link href={`/community?design=${design.id}`} key={design.id} className="group relative bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:border-red-500/50 transition block">
+                      <div className="aspect-square bg-black">
+                        {design.previewImage ? (
+                          <img
+                            src={design.previewImage}
+                            className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"
+                            alt={design.name || "Design"}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-700">
+                            <Palette size={32} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-bold truncate">{design.name || `Design`}</p>
+                          <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <Heart size={12} className="text-red-500 fill-red-500" />
+                            {design.likesCount}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="h-5 w-5 rounded-full bg-zinc-800 overflow-hidden">
+                            {design.user?.image ? (
+                              <img src={design.user.image} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[8px] font-bold">
+                                {design.user?.name?.charAt(0)}
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400 truncate">{design.user?.name}</span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }

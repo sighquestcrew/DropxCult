@@ -1,37 +1,48 @@
 "use client";
 
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Loader2, Trophy, Flame, Heart, MessageCircle, Share2, User, Crown, Users, TrendingUp, Clock, Award, Eye, ShoppingCart } from "lucide-react";
-import { useState, useRef } from "react";
+import { Loader2, Trophy, Flame, Heart, MessageCircle, Share2, User, Crown, Users, TrendingUp, Clock, Award, Eye, ShoppingCart, Search, Sparkles, ChevronDown, Plus, X, ShoppingBag } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/redux/store";
 import { addToCart } from "@/redux/slices/cartSlice";
 import { toast } from "sonner";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function CommunityPage() {
     const { userInfo } = useSelector((state: RootState) => state.auth);
     const dispatch = useDispatch();
     const queryClient = useQueryClient();
+    const router = useRouter();
 
-    const [leaderboardFilter, setLeaderboardFilter] = useState("creators");
+    const [activeTab, setActiveTab] = useState<"foryou" | "following" | "trending">("foryou");
     const [period, setPeriod] = useState("alltime");
-    const [sort, setSort] = useState("latest");
     const [selectedDesign, setSelectedDesign] = useState<any>(null);
     const [commentText, setCommentText] = useState("");
     const [likedDesigns, setLikedDesigns] = useState<Set<string>>(new Set());
     const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
     const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
     const commentInputRef = useRef<HTMLInputElement>(null);
+    const [isPeriodDropdownOpen, setIsPeriodDropdownOpen] = useState(false);
+    const [mobileView, setMobileView] = useState<"search" | "trending" | "creators" | null>(null);
+
+    // Search state
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
     // Fetch community data
     const { data, isLoading } = useQuery({
-        queryKey: ["community", leaderboardFilter, period, sort],
+        queryKey: ["community", activeTab, period],
         queryFn: async () => {
-            const { data } = await axios.get(`/api/community?filter=${leaderboardFilter}&period=${period}&sort=${sort}`, {
+            const sort = activeTab === "trending" ? "trending" : activeTab === "foryou" ? "popular" : "latest";
+            const { data } = await axios.get(`/api/community?filter=creators&period=${period}&sort=${sort}&tab=${activeTab}`, {
                 headers: userInfo?.token ? { Authorization: `Bearer ${userInfo.token}` } : {}
             });
-            // Initialize liked state from API response
             if (data.feed) {
                 const liked = new Set<string>();
                 data.feed.forEach((d: any) => {
@@ -52,14 +63,10 @@ export default function CommunityPage() {
             return { ...data, designId };
         },
         onSuccess: (data) => {
-            // Toggle liked state
             setLikedDesigns(prev => {
                 const newSet = new Set(prev);
-                if (data.liked) {
-                    newSet.add(data.designId);
-                } else {
-                    newSet.delete(data.designId);
-                }
+                if (data.liked) newSet.add(data.designId);
+                else newSet.delete(data.designId);
                 return newSet;
             });
             queryClient.invalidateQueries({ queryKey: ["community"] });
@@ -67,7 +74,22 @@ export default function CommunityPage() {
         onError: () => toast.error("Please login to like")
     });
 
-    // Comment mutation (supports replies via parentId)
+    // Follow mutation
+    const followMutation = useMutation({
+        mutationFn: async (userId: string) => {
+            const { data } = await axios.post(`/api/users/${userId}/follow`, {}, {
+                headers: { Authorization: `Bearer ${userInfo?.token}` }
+            });
+            return data;
+        },
+        onSuccess: (data) => {
+            toast.success(data.followed ? "Followed!" : "Unfollowed");
+            queryClient.invalidateQueries({ queryKey: ["community"] });
+        },
+        onError: () => toast.error("Please login to follow")
+    });
+
+    // Comment mutation
     const commentMutation = useMutation({
         mutationFn: async ({ designId, content, parentId }: { designId: string; content: string; parentId?: string }) => {
             const { data } = await axios.post(`/api/designs/${designId}/comments`, { content, parentId }, {
@@ -85,7 +107,7 @@ export default function CommunityPage() {
         onError: () => toast.error("Please login to comment")
     });
 
-    // Fetch comments for selected design
+    // Fetch comments
     const { data: comments } = useQuery({
         queryKey: ["comments", selectedDesign?.id],
         queryFn: async () => {
@@ -94,20 +116,6 @@ export default function CommunityPage() {
             return data;
         },
         enabled: !!selectedDesign?.id && selectedDesign?.is3D
-    });
-
-    // Follow mutation
-    const followMutation = useMutation({
-        mutationFn: async (userId: string) => {
-            const { data } = await axios.post(`/api/users/${userId}/follow`, {}, {
-                headers: { Authorization: `Bearer ${userInfo?.token}` }
-            });
-            return data;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["community"] });
-        },
-        onError: () => toast.error("Please login to follow")
     });
 
     // Comment like mutation
@@ -119,14 +127,10 @@ export default function CommunityPage() {
             return { ...data, commentId };
         },
         onSuccess: (data) => {
-            // Update local state based on response
             setLikedComments(prev => {
                 const newSet = new Set(prev);
-                if (data.liked) {
-                    newSet.add(data.commentId);
-                } else {
-                    newSet.delete(data.commentId);
-                }
+                if (data.liked) newSet.add(data.commentId);
+                else newSet.delete(data.commentId);
                 return newSet;
             });
             queryClient.invalidateQueries({ queryKey: ["comments"] });
@@ -134,32 +138,27 @@ export default function CommunityPage() {
         onError: () => toast.error("Please login to like")
     });
 
-    // Share handler
     const handleShare = async (design: any) => {
         const url = `${window.location.origin}/community?design=${design.id}`;
         try {
             await navigator.clipboard.writeText(url);
             toast.success("Link copied!");
-            if (design.is3D) {
-                axios.post(`/api/designs/${design.id}/share`);
-            }
+            if (design.is3D) axios.post(`/api/designs/${design.id}/share`);
         } catch {
             toast.error("Failed to copy link");
         }
     };
 
-    // Handle buy/add to cart for 3D designs
     const handleBuyDesign = (design: any) => {
         if (!userInfo) {
             toast.error("Please login to purchase");
             return;
         }
-
         dispatch(addToCart({
             id: design.id,
             name: design.name,
             slug: `design-${design.id}`,
-            price: 999, // Default price for community designs
+            price: 999,
             image: design.previewImage || "",
             size: "M",
             qty: 1,
@@ -171,453 +170,734 @@ export default function CommunityPage() {
 
     const getRankColor = (rank: string) => {
         switch (rank) {
-            case "Founder": return "text-yellow-500 border-yellow-500 bg-yellow-900/30";
-            case "Elder": return "text-purple-500 border-purple-500 bg-purple-900/30";
-            case "Zealot": return "text-red-500 border-red-500 bg-red-900/30";
-            case "Apostle": return "text-orange-500 border-orange-500 bg-orange-900/30";
-            case "Disciple": return "text-blue-500 border-blue-500 bg-blue-900/30";
-            default: return "text-gray-400 border-gray-600 bg-gray-800";
+            case "Founder": return "text-yellow-500 bg-yellow-500/10";
+            case "Elder": return "text-purple-500 bg-purple-500/10";
+            case "Zealot": return "text-red-500 bg-red-500/10";
+            case "Apostle": return "text-orange-500 bg-orange-500/10";
+            case "Disciple": return "text-blue-500 bg-blue-500/10";
+            default: return "text-gray-400 bg-gray-500/10";
         }
     };
 
-    if (isLoading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-red-600" size={32} /></div>;
+    const getTimeAgo = (date: string) => {
+        const now = new Date();
+        const d = new Date(date);
+        const diffMs = now.getTime() - d.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        if (diffMins < 1) return "now";
+        if (diffMins < 60) return `${diffMins}m`;
+        if (diffHours < 24) return `${diffHours}h`;
+        if (diffDays < 7) return `${diffDays}d`;
+        return `${Math.floor(diffDays / 7)}w`;
+    };
+
+    if (isLoading) return (
+        <div className="min-h-screen bg-black flex items-center justify-center">
+            <Loader2 className="animate-spin text-blue-500" size={32} />
+        </div>
+    );
 
     return (
-        <div className="min-h-screen bg-black text-white pt-4 pb-12">
-            <div className="container mx-auto px-4 max-w-7xl">
+        <div className="min-h-screen bg-black text-white overflow-x-hidden">
+            <div className="max-w-7xl mx-auto flex">
 
-                {/* Header */}
-                <div className="text-center mb-6">
-                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tighter mb-2 text-red-600">THE CULT</h1>
-                    <p className="text-gray-400 text-sm">Where legends are forged and designs become mythology.</p>
-                </div>
-
-                {/* Leaderboard */}
-                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 sm:p-6 mb-6">
-                    <div className="flex flex-col gap-4 mb-4">
-                        {/* Title + Filters Row */}
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                            <h2 className="text-lg font-bold flex items-center gap-2">
-                                <Trophy className="text-yellow-500" size={20} /> Top Creators
-                            </h2>
-
-                            {/* Leaderboard Type Toggle */}
-                            <div className="flex bg-black rounded p-1 border border-zinc-800">
+                {/* Main Feed - Center */}
+                <main className="flex-1 min-w-0 border-0 sm:border-x border-zinc-800 min-h-screen">
+                    {/* Header Tabs */}
+                    <div className="sticky top-0 bg-black/80 backdrop-blur-md z-40 border-b border-zinc-800">
+                        <div className="flex">
+                            {[
+                                { id: "foryou", label: "For you" },
+                                { id: "following", label: "Following" },
+                                { id: "trending", label: "Trending" }
+                            ].map((tab) => (
                                 <button
-                                    onClick={() => setLeaderboardFilter("creators")}
-                                    className={`px-3 py-1.5 text-xs font-bold rounded transition ${leaderboardFilter === "creators" ? "bg-red-600/20 text-red-400" : "text-gray-500 hover:text-gray-300"}`}
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id as any)}
+                                    className={`flex-1 py-4 text-sm font-semibold transition-colors relative hover:bg-zinc-900 ${activeTab === tab.id ? "text-white" : "text-gray-500"
+                                        }`}
                                 >
-                                    <Users size={14} className="inline mr-1" /> Creators
+                                    {tab.label}
+                                    {activeTab === tab.id && (
+                                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-blue-500 rounded-full" />
+                                    )}
                                 </button>
-                                <button
-                                    onClick={() => setLeaderboardFilter("collectors")}
-                                    className={`px-3 py-1.5 text-xs font-bold rounded transition ${leaderboardFilter === "collectors" ? "bg-red-600/20 text-red-400" : "text-gray-500 hover:text-gray-300"}`}
-                                >
-                                    <Award size={14} className="inline mr-1" /> Collectors
-                                </button>
-                            </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Period Filter */}
+                    <div className="p-4 border-b border-zinc-800">
+                        {/* Mobile Dropdown */}
+                        <div className="block sm:hidden relative">
+                            <button
+                                onClick={() => setIsPeriodDropdownOpen(!isPeriodDropdownOpen)}
+                                className="w-full bg-zinc-900 border border-zinc-700 text-white py-2 pl-4 pr-10 rounded-lg text-left flex items-center justify-between"
+                            >
+                                <span className="capitalize">
+                                    {period === "daily" ? "Today" : period === "weekly" ? "This Week" : period === "monthly" ? "This Month" : "All Time"}
+                                </span>
+                                <ChevronDown size={16} className={`text-gray-400 transition-transform ${isPeriodDropdownOpen ? "rotate-180" : ""}`} />
+                            </button>
+
+                            {isPeriodDropdownOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setIsPeriodDropdownOpen(false)} />
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl z-20 overflow-hidden">
+                                        {[
+                                            { value: "daily", label: "Today" },
+                                            { value: "weekly", label: "This Week" },
+                                            { value: "monthly", label: "This Month" },
+                                            { value: "alltime", label: "All Time" }
+                                        ].map((p) => (
+                                            <button
+                                                key={p.value}
+                                                onClick={() => {
+                                                    setPeriod(p.value);
+                                                    setIsPeriodDropdownOpen(false);
+                                                }}
+                                                className={`w-full text-left px-4 py-3 text-sm transition ${period === p.value
+                                                    ? "bg-zinc-800 text-blue-500 font-bold"
+                                                    : "text-gray-300 hover:bg-zinc-800 hover:text-white"
+                                                    }`}
+                                            >
+                                                {p.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
 
-                        {/* Period Filter */}
-                        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                        {/* Desktop Tabs */}
+                        <div className="hidden sm:flex gap-2 overflow-x-auto">
                             {[
-                                { value: "weekly", label: "This Week", icon: Clock },
-                                { value: "monthly", label: "This Month", icon: TrendingUp },
-                                { value: "alltime", label: "All Time", icon: Crown }
+                                { value: "daily", label: "Today" },
+                                { value: "weekly", label: "This Week" },
+                                { value: "monthly", label: "This Month" },
+                                { value: "alltime", label: "All Time" }
                             ].map((p) => (
                                 <button
                                     key={p.value}
                                     onClick={() => setPeriod(p.value)}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full transition whitespace-nowrap ${period === p.value
-                                        ? "bg-gradient-to-r from-red-600 to-orange-600 text-white"
+                                    className={`px-4 py-1.5 text-sm font-medium rounded-full transition whitespace-nowrap ${period === p.value
+                                        ? "bg-white text-black"
                                         : "bg-zinc-800 text-gray-400 hover:bg-zinc-700"
                                         }`}
                                 >
-                                    <p.icon size={12} /> {p.label}
+                                    {p.label}
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    {/* Leaderboard Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                        {data?.leaderboard?.map((user: any, index: number) => (
-                            <div key={user.id || index} className="relative p-3 bg-black/50 rounded-lg border border-zinc-800/50 hover:border-red-900/50 transition group">
-                                {index < 3 && (
-                                    <div className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${index === 0 ? "bg-yellow-500 text-black" :
-                                        index === 1 ? "bg-gray-400 text-black" :
-                                            "bg-orange-700 text-white"
-                                        }`}>
-                                        {index + 1}
-                                    </div>
-                                )}
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="h-12 w-12 rounded-full bg-zinc-800 overflow-hidden border-2 border-zinc-700 mb-2">
-                                        {user.image ? (
-                                            <img src={user.image} className="h-full w-full object-cover" alt={user.name} />
-                                        ) : (
-                                            <div className="h-full w-full flex items-center justify-center text-gray-600">
-                                                <User size={20} />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <p className="font-bold text-sm truncate w-full">{user.name}</p>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border mt-1 ${getRankColor(user.rank)}`}>
-                                        {user.rank}
-                                    </span>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                        {leaderboardFilter === "creators"
-                                            ? `${user.followersCount || 0} followers`
-                                            : `${user.ordersCount || 0} orders`
-                                        }
-                                    </p>
-                                    {userInfo && user.id !== userInfo._id && (
-                                        <button
-                                            onClick={() => followMutation.mutate(user.id)}
-                                            className="mt-2 px-3 py-1 text-[10px] font-bold rounded-full bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white transition"
-                                        >
-                                            Follow
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                        {(!data?.leaderboard || data.leaderboard.length === 0) && (
-                            <div className="col-span-full py-8 text-center text-gray-500 text-sm">
-                                No creators to show yet. Be the first!
-                            </div>
-                        )}
-                    </div>
-                </div>
 
-                {/* Feed Section */}
-                <div>
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-bold flex items-center gap-2">
-                            <Flame className="text-red-500" size={20} /> Community Feed
-                        </h2>
 
-                        {/* Sort Toggle */}
-                        <div className="flex bg-zinc-900 rounded p-1 border border-zinc-800">
-                            {[
-                                { value: "latest", label: "Latest" },
-                                { value: "trending", label: "Trending" },
-                                { value: "popular", label: "Popular" }
-                            ].map((s) => (
-                                <button
-                                    key={s.value}
-                                    onClick={() => setSort(s.value)}
-                                    className={`px-3 py-1 text-xs font-bold rounded transition ${sort === s.value ? "bg-zinc-800 text-white" : "text-gray-500 hover:text-gray-300"
-                                        }`}
-                                >
-                                    {s.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Design Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Design Feed */}
+                    <div className="divide-y divide-zinc-800">
                         {data?.feed?.map((design: any) => (
-                            <div key={design.id} className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden group hover:border-red-900/50 transition-all duration-300">
-                                {/* Image */}
-                                <div className="aspect-square bg-black relative overflow-hidden">
-                                    {design.previewImage ? (
-                                        <img
-                                            src={design.previewImage}
-                                            alt={design.name}
-                                            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition duration-500"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs">
-                                            No Image
-                                        </div>
-                                    )}
-                                    {design.is3D && (
-                                        <span className="absolute top-2 left-2 px-2 py-0.5 bg-purple-600 text-white text-[10px] font-bold rounded">
-                                            3D
-                                        </span>
-                                    )}
-                                </div>
-
-                                {/* Content */}
-                                <div className="p-3">
-                                    {/* Creator Info */}
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="h-8 w-8 rounded-full bg-zinc-800 border border-zinc-700 overflow-hidden flex-shrink-0">
+                            <article key={design.id} className="p-2 sm:p-4 hover:bg-zinc-900/50 transition">
+                                {/* Creator Info */}
+                                <div className="flex gap-2 sm:gap-3">
+                                    <Link href={`/user/${design.user?.id}`} className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 p-[2px] flex-shrink-0 hover:opacity-80 transition">
+                                        <div className="h-full w-full rounded-full bg-zinc-900 flex items-center justify-center overflow-hidden">
                                             {design.user?.image ? (
-                                                <img src={design.user.image} className="w-full h-full object-cover" alt={design.user.name} />
+                                                <img src={design.user.image} className="w-full h-full object-cover" alt="" />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-gray-500">
-                                                    <User size={14} />
-                                                </div>
+                                                <User size={16} className="text-gray-500" />
                                             )}
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold truncate">{design.user?.name || "Unknown"}</p>
-                                            <span className={`text-[9px] px-1 py-0.5 rounded border ${getRankColor(design.user?.rank)}`}>
+                                    </Link>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <Link href={`/user/${design.user?.id}`} className="font-bold truncate hover:underline">
+                                                {design.user?.name || "Unknown"}
+                                            </Link>
+                                            <span className={`text-xs px-1.5 py-0.5 rounded ${getRankColor(design.user?.rank)}`}>
                                                 {design.user?.rank || "Initiate"}
                                             </span>
+                                            <span className="text-gray-500 text-sm">· {getTimeAgo(design.createdAt)}</span>
+                                        </div>
+
+                                        {/* Design Name */}
+                                        <p className="text-gray-100 mt-1">{design.name}</p>
+
+                                        {/* Design Image */}
+                                        {design.previewImage && (
+                                            <div className="mt-3 rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950 flex justify-center">
+                                                <img
+                                                    src={design.previewImage}
+                                                    alt={design.name}
+                                                    className="max-w-full max-h-[280px] sm:max-h-[300px] object-contain"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* Tags */}
+                                        <div className="flex gap-2 mt-3">
+                                            {design.is3D && (
+                                                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full">3D Design</span>
+                                            )}
+                                            {design.tshirtType && (
+                                                <span className="px-2 py-0.5 bg-zinc-800 text-gray-400 text-xs rounded-full">{design.tshirtType}</span>
+                                            )}
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="flex items-center gap-2 sm:gap-4 mt-4 flex-wrap">
+                                            <button
+                                                onClick={() => design.is3D && setSelectedDesign(design)}
+                                                className="flex items-center gap-1.5 text-gray-500 hover:text-blue-500 transition p-1.5 sm:p-2 rounded-full hover:bg-blue-500/10"
+                                            >
+                                                <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                                <span className="text-xs sm:text-sm">{design.commentsCount || 0}</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => design.is3D && likeMutation.mutate(design.id)}
+                                                className={`flex items-center gap-1.5 transition p-1.5 sm:p-2 rounded-full hover:bg-red-500/10 ${likedDesigns.has(design.id) ? "text-red-500" : "text-gray-500 hover:text-red-500"
+                                                    }`}
+                                            >
+                                                <Heart size={16} className={`sm:w-[18px] sm:h-[18px] ${likedDesigns.has(design.id) ? "fill-red-500" : ""}`} />
+                                                <span className="text-xs sm:text-sm">{design.likesCount || 0}</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => handleShare(design)}
+                                                className="flex items-center gap-1.5 text-gray-500 hover:text-green-500 transition p-1.5 sm:p-2 rounded-full hover:bg-green-500/10"
+                                            >
+                                                <Share2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                                <span className="text-xs sm:text-sm">{design.sharesCount || 0}</span>
+                                            </button>
+
+                                            {design.is3D && (
+                                                <a
+                                                    href={`${process.env.NEXT_PUBLIC_EDITOR_URL || 'http://localhost:3000'}?designId=${design.id}&viewOnly=true`}
+                                                    target="_blank"
+                                                    className="flex items-center text-gray-500 hover:text-purple-500 transition p-1.5 sm:p-2 rounded-full hover:bg-purple-500/10"
+                                                    title="View in 3D"
+                                                >
+                                                    <Eye size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                                </a>
+                                            )}
+
+                                            {design.is3D && (
+                                                <button
+                                                    onClick={() => handleBuyDesign(design)}
+                                                    className="flex items-center gap-1 text-gray-500 hover:text-yellow-500 transition p-1.5 sm:p-2 rounded-full hover:bg-yellow-500/10 ml-auto"
+                                                >
+                                                    <ShoppingCart size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                                    <span className="hidden sm:inline text-sm">₹999</span>
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
-
-                                    {/* Design Name */}
-                                    <h3 className="font-bold text-sm text-white mb-2 truncate">{design.name}</h3>
-
-                                    {/* Action Buttons */}
-                                    <div className="flex items-center gap-4 pt-2 border-t border-zinc-800">
-                                        {/* Like */}
-                                        <button
-                                            onClick={() => design.is3D && likeMutation.mutate(design.id)}
-                                            disabled={!design.is3D}
-                                            className={`flex items-center gap-1 text-sm transition ${!design.is3D
-                                                ? "text-gray-600 cursor-not-allowed"
-                                                : likedDesigns.has(design.id)
-                                                    ? "text-red-500"
-                                                    : "text-gray-400 hover:text-red-500"
-                                                }`}
-                                        >
-                                            <Heart size={18} className={likedDesigns.has(design.id) ? "fill-red-500" : ""} />
-                                            <span className="text-xs">{design.likesCount || 0}</span>
-                                        </button>
-
-                                        {/* Comment */}
-                                        <button
-                                            onClick={() => design.is3D && setSelectedDesign(design)}
-                                            disabled={!design.is3D}
-                                            className={`flex items-center gap-1 text-sm transition ${design.is3D ? "text-gray-400 hover:text-blue-500" : "text-gray-600 cursor-not-allowed"
-                                                }`}
-                                        >
-                                            <MessageCircle size={18} />
-                                            <span className="text-xs">{design.commentsCount || 0}</span>
-                                        </button>
-
-                                        {/* Share */}
-                                        <button
-                                            onClick={() => handleShare(design)}
-                                            className="flex items-center gap-1 text-sm text-gray-400 hover:text-green-500 transition"
-                                        >
-                                            <Share2 size={18} />
-                                        </button>
-
-                                        {/* View 3D - Only for 3D designs */}
-                                        {design.is3D && (
-                                            <a
-                                                href={`${process.env.NEXT_PUBLIC_EDITOR_URL || 'http://localhost:3000'}?designId=${design.id}&viewOnly=true`}
-                                                target="_blank"
-                                                className="flex items-center gap-1 text-sm text-gray-400 hover:text-purple-500 transition"
-                                            >
-                                                <Eye size={18} />
-                                            </a>
-                                        )}
-
-                                        {/* Buy Button - For 3D designs */}
-                                        {design.is3D && (
-                                            <button
-                                                onClick={() => handleBuyDesign(design)}
-                                                className="flex items-center gap-1 text-sm text-gray-400 hover:text-yellow-500 transition ml-auto"
-                                                title="Add to Cart"
-                                            >
-                                                <ShoppingCart size={18} />
-                                            </button>
-                                        )}
-                                    </div>
                                 </div>
-                            </div>
+                            </article>
                         ))}
 
                         {(!data?.feed || data.feed.length === 0) && (
-                            <div className="col-span-full py-16 text-center text-gray-500">
+                            <div className="py-16 text-center text-gray-500">
                                 <Flame size={48} className="mx-auto mb-4 opacity-30" />
-                                <p>No public designs yet. Be the first to drop one!</p>
+                                <p>No designs yet. Be the first to share!</p>
                             </div>
                         )}
                     </div>
-                </div>
-            </div>
+                </main>
 
-            {/* Comments Modal - Instagram Style */}
-            {selectedDesign && (
-                <div className="fixed inset-0 bg-black/90 flex items-end sm:items-center justify-center z-50" onClick={() => setSelectedDesign(null)}>
-                    <div
-                        className="bg-[#262626] w-full sm:w-full sm:max-w-md h-[85vh] sm:h-[80vh] sm:rounded-xl flex flex-col overflow-hidden"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Header */}
-                        <div className="flex items-center justify-center p-4 border-b border-zinc-700 relative">
-                            <h3 className="font-semibold text-white text-base">Comments</h3>
-                            <button
-                                onClick={() => setSelectedDesign(null)}
-                                className="absolute right-4 text-gray-400 hover:text-white text-xl"
-                            >
-                                ✕
-                            </button>
-                        </div>
+                {/* Right Sidebar - Trending */}
+                <aside className="hidden lg:block w-80 p-4 space-y-4">
+                    {/* Search */}
+                    <div className="relative">
+                        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+                        <input
+                            type="text"
+                            placeholder="Search @username or name"
+                            value={searchQuery}
+                            onChange={(e) => {
+                                const query = e.target.value;
+                                setSearchQuery(query);
 
-                        {/* Comments List */}
-                        <div className="flex-1 overflow-y-auto">
-                            {comments?.length === 0 && (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                                    <MessageCircle size={48} className="mb-4 opacity-30" />
-                                    <p className="text-lg font-semibold">No comments yet</p>
-                                    <p className="text-sm">Start the conversation.</p>
-                                </div>
-                            )}
+                                // Debounce search
+                                if (searchTimeout.current) clearTimeout(searchTimeout.current);
+                                if (query.length >= 2) {
+                                    setIsSearching(true);
+                                    searchTimeout.current = setTimeout(async () => {
+                                        try {
+                                            const { data } = await axios.get(`/api/users/search?q=${encodeURIComponent(query)}`);
+                                            setSearchResults(data.users || []);
+                                        } catch {
+                                            setSearchResults([]);
+                                        } finally {
+                                            setIsSearching(false);
+                                        }
+                                    }, 300);
+                                } else {
+                                    setSearchResults([]);
+                                    setIsSearching(false);
+                                }
+                            }}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        />
 
-                            {comments?.map((comment: any) => {
-                                // Calculate relative time
-                                const getTimeAgo = (date: string) => {
-                                    const now = new Date();
-                                    const commentDate = new Date(date);
-                                    const diffMs = now.getTime() - commentDate.getTime();
-                                    const diffMins = Math.floor(diffMs / 60000);
-                                    const diffHours = Math.floor(diffMs / 3600000);
-                                    const diffDays = Math.floor(diffMs / 86400000);
-                                    const diffWeeks = Math.floor(diffDays / 7);
-
-                                    if (diffMins < 1) return "now";
-                                    if (diffMins < 60) return `${diffMins}m`;
-                                    if (diffHours < 24) return `${diffHours}h`;
-                                    if (diffDays < 7) return `${diffDays}d`;
-                                    return `${diffWeeks}w`;
-                                };
-
-                                return (
-                                    <div key={comment.id}>
-                                        <div className="flex gap-3 px-4 py-3 hover:bg-zinc-800/30">
-                                            {/* Avatar */}
-                                            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 p-[2px] flex-shrink-0">
-                                                <div className="h-full w-full rounded-full bg-[#262626] flex items-center justify-center overflow-hidden">
-                                                    {comment.user?.image ? (
-                                                        <img src={comment.user.image} className="w-full h-full object-cover" alt="" />
+                        {/* Search Dropdown */}
+                        {(searchResults.length > 0 || isSearching) && searchQuery.length >= 2 && (
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-50">
+                                {isSearching ? (
+                                    <div className="p-4 text-center text-gray-500">
+                                        <Loader2 size={20} className="animate-spin mx-auto" />
+                                    </div>
+                                ) : searchResults.length > 0 ? (
+                                    <div className="divide-y divide-zinc-800">
+                                        {searchResults.map((user: any) => (
+                                            <Link
+                                                key={user.id}
+                                                href={`/user/${user.id}`}
+                                                onClick={() => {
+                                                    setSearchQuery("");
+                                                    setSearchResults([]);
+                                                }}
+                                                className="flex items-center gap-3 p-3 hover:bg-zinc-800 transition"
+                                            >
+                                                <div className="h-10 w-10 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
+                                                    {user.image ? (
+                                                        <img src={user.image} className="w-full h-full object-cover" alt="" />
                                                     ) : (
-                                                        <span className="text-white text-sm font-semibold">
-                                                            {comment.user?.name?.charAt(0)?.toUpperCase() || "U"}
-                                                        </span>
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <User size={18} className="text-gray-600" />
+                                                        </div>
                                                     )}
                                                 </div>
-                                            </div>
-
-                                            {/* Comment Content */}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm leading-relaxed">
-                                                    <span className="font-semibold text-white mr-1">{comment.user?.name}</span>
-                                                    <span className="text-gray-200">{comment.content}</span>
-                                                </p>
-                                                <div className="flex items-center gap-3 mt-1.5">
-                                                    <span className="text-xs text-gray-500">{getTimeAgo(comment.createdAt)}</span>
-                                                    <button
-                                                        onClick={() => {
-                                                            setReplyingTo({ id: comment.id, name: comment.user?.name });
-                                                            setCommentText(`@${comment.user?.name} `);
-                                                            commentInputRef.current?.focus();
-                                                        }}
-                                                        className="text-xs text-gray-500 font-semibold hover:text-gray-300"
-                                                    >
-                                                        Reply
-                                                    </button>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-sm truncate">{user.name}</p>
+                                                    <p className="text-xs text-gray-500">@{user.username || user.name?.toLowerCase().replace(/\s/g, '')}</p>
                                                 </div>
-                                            </div>
+                                                <span className={`text-xs px-1.5 py-0.5 rounded ${getRankColor(user.rank)}`}>
+                                                    {user.rank}
+                                                </span>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="p-4 text-center text-gray-500 text-sm">
+                                        No users found
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
 
-                                            {/* Like Button */}
-                                            <button
-                                                onClick={() => commentLikeMutation.mutate(comment.id)}
-                                                className={`flex-shrink-0 p-1 flex flex-col items-center transition ${likedComments.has(comment.id) ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
-                                            >
-                                                <Heart size={14} className={likedComments.has(comment.id) ? 'fill-red-500' : ''} />
-                                                {comment.likesCount > 0 && (
-                                                    <span className="text-[10px] mt-0.5">{comment.likesCount}</span>
+                    {/* Top Creators */}
+                    <div className="bg-zinc-900 rounded-2xl p-4">
+                        <h2 className="text-xl font-bold mb-4">Top Creators</h2>
+                        <div className="space-y-4">
+                            {data?.leaderboard?.slice(0, 5).map((user: any, index: number) => (
+                                <div key={user.id} className="flex items-center gap-3">
+                                    <div className="w-5 text-center text-sm font-bold text-gray-500">
+                                        {index + 1}
+                                    </div>
+                                    <Link href={`/user/${user.id}`} className="h-10 w-10 rounded-full bg-zinc-800 overflow-hidden hover:ring-2 hover:ring-red-500 transition">
+                                        {user.image ? (
+                                            <img src={user.image} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <User size={16} className="text-gray-600" />
+                                            </div>
+                                        )}
+                                    </Link>
+                                    <Link href={`/user/${user.id}`} className="flex-1 min-w-0 hover:opacity-80 transition">
+                                        <p className="font-bold text-sm truncate hover:underline">{user.name}</p>
+                                        <p className="text-xs text-gray-500">{user.followersCount || 0} followers</p>
+                                    </Link>
+                                    {userInfo && user.id !== userInfo._id && (
+                                        <button
+                                            onClick={() => followMutation.mutate(user.id)}
+                                            disabled={followMutation.isPending}
+                                            className={`px-4 py-1 text-sm font-bold rounded-full transition disabled:opacity-50 ${user.isFollowing
+                                                ? "bg-zinc-700 text-white border border-zinc-600 hover:border-red-500 hover:text-red-500"
+                                                : "bg-white text-black hover:bg-gray-200"
+                                                }`}
+                                        >
+                                            {followMutation.isPending ? "..." : user.isFollowing ? "Following" : "Follow"}
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        <Link href="/community?tab=creators" className="text-blue-500 text-sm mt-4 hover:underline block">Show more</Link>
+                    </div>
+
+                    {/* What's Trending */}
+                    <div className="bg-zinc-900 rounded-2xl p-4">
+                        <h2 className="text-xl font-bold mb-4">What&apos;s trending</h2>
+                        <div className="space-y-4">
+                            {data?.feed
+                                ?.filter((d: any) => d.is3D)
+                                .sort((a: any, b: any) => (b.likesCount || 0) - (a.likesCount || 0))
+                                .slice(0, 4)
+                                .map((design: any, index: number) => (
+                                    <div key={design.id} className="group cursor-pointer">
+                                        <p className="text-xs text-gray-500">
+                                            {index + 1} · {period === "daily" ? "Today" : period === "weekly" ? "This week" : "Trending"}
+                                        </p>
+                                        <p className="font-bold group-hover:text-blue-500 transition truncate">
+                                            {design.name}
+                                        </p>
+                                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                                            <Heart size={12} className="text-red-500" /> {design.likesCount || 0} likes
+                                        </p>
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
+
+                    {/* Create Design CTA */}
+                    <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 rounded-2xl p-4 border border-purple-500/20">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Sparkles className="text-purple-400" size={20} />
+                            <h3 className="font-bold">Create Your Design</h3>
+                        </div>
+                        <p className="text-sm text-gray-400 mb-3">
+                            Design custom t-shirts with our 3D editor
+                        </p>
+                        <Link
+                            href="/customize"
+                            className="block w-full py-2 bg-white text-black text-center text-sm font-bold rounded-full hover:bg-gray-200 transition"
+                        >
+                            Start Creating
+                        </Link>
+                    </div>
+                </aside>
+            </div>
+
+            {/* Mobile Bottom Navigation Bar */}
+            <div className="lg:hidden">
+                {/* Fixed Bottom Nav */}
+                <div className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 backdrop-blur-md border-t border-zinc-800 pb-safe">
+                    <div className="flex items-center justify-around p-3">
+                        <button
+                            onClick={() => setMobileView("search")}
+                            className={`flex flex-col items-center gap-1 transition ${mobileView === "search" ? "text-blue-500" : "text-gray-400 hover:text-white"}`}
+                        >
+                            <Search size={24} />
+                            <span className="text-[10px] font-medium">Search</span>
+                        </button>
+
+                        <button
+                            onClick={() => setMobileView("trending")}
+                            className={`flex flex-col items-center gap-1 transition ${mobileView === "trending" ? "text-red-500" : "text-gray-400 hover:text-white"}`}
+                        >
+                            <Flame size={24} />
+                            <span className="text-[10px] font-medium">Trending</span>
+                        </button>
+
+                        <Link
+                            href="/customize"
+                            className="flex flex-col items-center justify-center -mt-6"
+                        >
+                            <div className="h-14 w-14 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 border-4 border-black">
+                                <Plus size={28} />
+                            </div>
+                        </Link>
+
+                        <button
+                            onClick={() => setMobileView("creators")}
+                            className={`flex flex-col items-center gap-1 transition ${mobileView === "creators" ? "text-yellow-500" : "text-gray-400 hover:text-white"}`}
+                        >
+                            <Crown size={24} />
+                            <span className="text-[10px] font-medium">Creators</span>
+                        </button>
+
+                        <Link
+                            href="/shop"
+                            className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition"
+                        >
+                            <ShoppingBag size={24} />
+                            <span className="text-[10px] font-medium">Shop</span>
+                        </Link>
+                    </div>
+                </div>
+
+                {/* Bottom Sheet Modal */}
+                {mobileView && (
+                    <div className="fixed inset-0 z-50 flex items-end">
+                        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setMobileView(null)} />
+                        <div className="relative w-full bg-zinc-900 rounded-t-3xl border-t border-zinc-800 max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
+                            {/* Sheet Header */}
+                            <div className="sticky top-0 z-10 bg-zinc-900/95 backdrop-blur p-4 border-b border-zinc-800 flex items-center justify-between">
+                                <h3 className="font-bold text-lg capitalize">
+                                    {mobileView === "search" && "Search Community"}
+                                    {mobileView === "trending" && "What's Trending"}
+                                    {mobileView === "creators" && "Top Creators"}
+                                </h3>
+                                <button onClick={() => setMobileView(null)} className="p-2 bg-zinc-800 rounded-full hover:bg-zinc-700 transition">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-4 pb-24 space-y-6">
+                                {/* Conditional Content Based on View */}
+
+                                {/* SEARCH VIEW */}
+                                {mobileView === "search" && (
+                                    <div className="relative">
+                                        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search @username or name"
+                                            value={searchQuery}
+                                            autoFocus
+                                            onChange={(e) => {
+                                                const query = e.target.value;
+                                                setSearchQuery(query);
+
+                                                if (searchTimeout.current) clearTimeout(searchTimeout.current);
+                                                if (query.length >= 2) {
+                                                    setIsSearching(true);
+                                                    searchTimeout.current = setTimeout(async () => {
+                                                        try {
+                                                            const { data } = await axios.get(`/api/users/search?q=${encodeURIComponent(query)}`);
+                                                            setSearchResults(data.users || []);
+                                                        } catch {
+                                                            setSearchResults([]);
+                                                        } finally {
+                                                            setIsSearching(false);
+                                                        }
+                                                    }, 300);
+                                                } else {
+                                                    setSearchResults([]);
+                                                    setIsSearching(false);
+                                                }
+                                            }}
+                                            className="w-full bg-zinc-950 border border-zinc-800 rounded-full py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                        />
+
+                                        {/* Search Results */}
+                                        {(searchResults.length > 0 || isSearching) && searchQuery.length >= 2 && (
+                                            <div className="mt-4 bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+                                                {isSearching ? (
+                                                    <div className="p-4 text-center text-gray-500">
+                                                        <Loader2 size={20} className="animate-spin mx-auto" />
+                                                    </div>
+                                                ) : searchResults.length > 0 ? (
+                                                    <div className="divide-y divide-zinc-800">
+                                                        {searchResults.map((user: any) => (
+                                                            <Link
+                                                                key={user.id}
+                                                                href={`/user/${user.id}`}
+                                                                onClick={() => {
+                                                                    setSearchQuery("");
+                                                                    setSearchResults([]);
+                                                                    setMobileView(null);
+                                                                }}
+                                                                className="flex items-center gap-3 p-3 hover:bg-zinc-800 transition"
+                                                            >
+                                                                <div className="h-10 w-10 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
+                                                                    {user.image ? (
+                                                                        <img src={user.image} className="w-full h-full object-cover" alt="" />
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex items-center justify-center">
+                                                                            <User size={18} className="text-gray-600" />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="font-bold text-sm truncate">{user.name}</p>
+                                                                    <p className="text-xs text-gray-500">@{user.username || user.name?.toLowerCase().replace(/\s/g, '')}</p>
+                                                                </div>
+                                                                <span className={`text-xs px-1.5 py-0.5 rounded ${getRankColor(user.rank)}`}>
+                                                                    {user.rank}
+                                                                </span>
+                                                            </Link>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="p-4 text-center text-gray-500 text-sm">
+                                                        No users found
+                                                    </div>
                                                 )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* TRENDING VIEW */}
+                                {mobileView === "trending" && (
+                                    <div className="space-y-4">
+                                        {data?.feed
+                                            ?.filter((d: any) => d.is3D)
+                                            .sort((a: any, b: any) => (b.likesCount || 0) - (a.likesCount || 0))
+                                            .slice(0, 5)
+                                            .map((design: any, index: number) => (
+                                                <div key={design.id} className="group cursor-pointer bg-zinc-950 p-3 rounded-xl border border-zinc-800 flex items-center gap-4">
+                                                    <div className="text-2xl font-bold text-zinc-700 w-8 text-center">{index + 1}</div>
+                                                    <div className="flex-1">
+                                                        <p className="font-bold group-hover:text-blue-500 transition truncate text-lg">
+                                                            {design.name}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                                                            <Heart size={12} className="text-red-500 fill-red-500" /> {design.likesCount || 0} likes
+                                                        </p>
+                                                    </div>
+                                                    {design.previewImage && (
+                                                        <div className="h-12 w-12 rounded-lg bg-zinc-800 overflow-hidden">
+                                                            <img src={design.previewImage} alt="" className="h-full w-full object-cover" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                    </div>
+                                )}
+
+                                {/* CREATORS VIEW */}
+                                {mobileView === "creators" && (
+                                    <div className="space-y-4">
+                                        {data?.leaderboard?.slice(0, 10).map((user: any, index: number) => (
+                                            <div key={user.id} className="flex items-center gap-3 bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+                                                <div className="w-6 text-center text-sm font-bold text-gray-500">
+                                                    {index + 1}
+                                                </div>
+                                                <Link href={`/user/${user.id}`} className="h-12 w-12 rounded-full bg-zinc-800 overflow-hidden hover:ring-2 hover:ring-red-500 transition">
+                                                    {user.image ? (
+                                                        <img src={user.image} className="w-full h-full object-cover" alt="" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <User size={20} className="text-gray-600" />
+                                                        </div>
+                                                    )}
+                                                </Link>
+                                                <Link href={`/user/${user.id}`} className="flex-1 min-w-0 hover:opacity-80 transition">
+                                                    <p className="font-bold text-sm truncate hover:underline">{user.name}</p>
+                                                    <p className="text-xs text-gray-500">{user.followersCount || 0} followers</p>
+                                                </Link>
+                                                {userInfo && user.id !== userInfo._id && (
+                                                    <button
+                                                        onClick={() => followMutation.mutate(user.id)}
+                                                        disabled={followMutation.isPending}
+                                                        className={`px-3 py-1 text-xs font-bold rounded-full transition disabled:opacity-50 ${user.isFollowing
+                                                            ? "bg-zinc-800 text-white border border-zinc-700"
+                                                            : "bg-white text-black hover:bg-gray-200"
+                                                            }`}
+                                                    >
+                                                        {followMutation.isPending ? "..." : user.isFollowing ? "Following" : "Follow"}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Comments Modal */}
+            {selectedDesign && (
+                <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50" onClick={() => setSelectedDesign(null)}>
+                    <div
+                        className="bg-zinc-900 w-full max-w-lg h-[80vh] rounded-2xl flex flex-col overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+                            <h3 className="font-bold text-lg">Comments</h3>
+                            <button onClick={() => setSelectedDesign(null)} className="text-gray-400 hover:text-white text-xl">✕</button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {comments?.length === 0 && (
+                                <div className="text-center text-gray-500 py-8">
+                                    <MessageCircle size={48} className="mx-auto mb-4 opacity-30" />
+                                    <p>No comments yet</p>
+                                </div>
+                            )}
+                            {comments?.map((comment: any) => (
+                                <div key={comment.id} className="flex gap-3">
+                                    <div className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center text-sm font-bold">
+                                        {comment.user?.name?.charAt(0)?.toUpperCase() || "U"}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm">
+                                            <span className="font-bold">{comment.user?.name}</span>{" "}
+                                            <span className="text-gray-300">{comment.content}</span>
+                                        </p>
+                                        <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                                            <span>{getTimeAgo(comment.createdAt)}</span>
+                                            <button
+                                                onClick={() => {
+                                                    setReplyingTo({ id: comment.id, name: comment.user?.name });
+                                                    commentInputRef.current?.focus();
+                                                }}
+                                                className="hover:text-white"
+                                            >
+                                                Reply
                                             </button>
                                         </div>
 
                                         {/* Nested Replies */}
                                         {comment.replies && comment.replies.length > 0 && (
-                                            <div className="ml-12 border-l border-zinc-700/50">
+                                            <div className="mt-2 space-y-2 pl-2 border-l border-zinc-700">
                                                 {comment.replies.map((reply: any) => (
-                                                    <div key={reply.id} className="flex gap-3 px-4 py-2 hover:bg-zinc-800/20">
-                                                        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 p-[2px] flex-shrink-0">
-                                                            <div className="h-full w-full rounded-full bg-[#262626] flex items-center justify-center overflow-hidden">
-                                                                {reply.user?.image ? (
-                                                                    <img src={reply.user.image} className="w-full h-full object-cover" alt="" />
-                                                                ) : (
-                                                                    <span className="text-white text-xs font-semibold">
-                                                                        {reply.user?.name?.charAt(0)?.toUpperCase() || "U"}
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                    <div key={reply.id} className="flex gap-2">
+                                                        <div className="h-6 w-6 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold overflow-hidden">
+                                                            {reply.user?.image ? (
+                                                                <img src={reply.user.image} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <span>{reply.user?.name?.charAt(0)?.toUpperCase()}</span>
+                                                            )}
                                                         </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-sm leading-relaxed">
-                                                                <span className="font-semibold text-white mr-1">{reply.user?.name}</span>
-                                                                <span className="text-gray-300">{reply.content}</span>
+                                                        <div className="flex-1">
+                                                            <p className="text-xs">
+                                                                <span className="font-bold text-gray-300">{reply.user?.name}</span>{" "}
+                                                                <span className="text-gray-400">{reply.content}</span>
                                                             </p>
-                                                            <span className="text-xs text-gray-500">{getTimeAgo(reply.createdAt)}</span>
+                                                            <span className="text-[10px] text-gray-600">{getTimeAgo(reply.createdAt)}</span>
                                                         </div>
                                                     </div>
                                                 ))}
                                             </div>
                                         )}
                                     </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* Bottom Input Bar */}
-                        <div className="border-t border-zinc-700 bg-[#262626]">
-                            {userInfo ? (
-                                <div className="flex items-center gap-3 p-4">
-                                    {/* User Avatar */}
-                                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-red-500 to-orange-500 p-[2px] flex-shrink-0">
-                                        <div className="h-full w-full rounded-full bg-[#262626] flex items-center justify-center">
-                                            <span className="text-white text-xs font-semibold">
-                                                {userInfo.name?.charAt(0)?.toUpperCase() || "U"}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Input */}
-                                    <input
-                                        ref={commentInputRef}
-                                        type="text"
-                                        value={commentText}
-                                        onChange={(e) => setCommentText(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter" && commentText.trim()) {
-                                                commentMutation.mutate({ designId: selectedDesign.id, content: commentText, parentId: replyingTo?.id });
-                                            }
-                                        }}
-                                        placeholder={replyingTo ? `Replying to @${replyingTo.name}...` : `Add a comment...`}
-                                        className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none"
-                                    />
-
-                                    {/* Cancel Reply */}
-                                    {replyingTo && (
-                                        <button
-                                            onClick={() => { setReplyingTo(null); setCommentText(''); }}
-                                            className="text-gray-500 text-xs hover:text-white"
-                                        >
-                                            ✕
-                                        </button>
-                                    )}
-
-                                    {/* Post Button */}
                                     <button
-                                        onClick={() => commentMutation.mutate({ designId: selectedDesign.id, content: commentText, parentId: replyingTo?.id })}
-                                        disabled={!commentText.trim() || commentMutation.isPending}
-                                        className="text-blue-500 font-semibold text-sm hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition"
+                                        onClick={() => commentLikeMutation.mutate(comment.id)}
+                                        className={`transition ${likedComments.has(comment.id) ? "text-red-500" : "text-gray-500 hover:text-red-500"}`}
                                     >
-                                        {commentMutation.isPending ? "..." : "Post"}
+                                        <Heart size={14} className={likedComments.has(comment.id) ? "fill-red-500" : ""} />
                                     </button>
                                 </div>
-                            ) : (
-                                <div className="p-4 text-center">
-                                    <p className="text-gray-500 text-sm">
-                                        <a href="/login" className="text-blue-500 hover:underline">Log in</a> to comment
-                                    </p>
-                                </div>
-                            )}
+                            ))}
                         </div>
+
+                        {userInfo ? (
+                            <div className="p-4 border-t border-zinc-800 flex gap-3">
+                                <input
+                                    ref={commentInputRef}
+                                    type="text"
+                                    value={commentText}
+                                    onChange={(e) => setCommentText(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && commentText.trim()) {
+                                            commentMutation.mutate({ designId: selectedDesign.id, content: commentText, parentId: replyingTo?.id });
+                                        }
+                                    }}
+                                    placeholder={replyingTo ? `Replying to @${replyingTo.name}...` : "Add a comment..."}
+                                    className="flex-1 bg-zinc-800 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                                <button
+                                    onClick={() => commentMutation.mutate({ designId: selectedDesign.id, content: commentText, parentId: replyingTo?.id })}
+                                    disabled={!commentText.trim()}
+                                    className="px-4 py-2 bg-blue-500 text-white font-bold rounded-full disabled:opacity-50"
+                                >
+                                    Post
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="p-4 border-t border-zinc-800 text-center">
+                                <Link href="/login" className="text-blue-500 hover:underline">Log in</Link> to comment
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

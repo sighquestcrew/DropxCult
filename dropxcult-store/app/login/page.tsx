@@ -33,12 +33,12 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormValues) => {
     try {
       const res = await axios.post("/api/auth/login", data);
-      
+
       // Save to Redux and LocalStorage
       dispatch(setCredentials(res.data));
-      
+
       toast.success("Welcome back.");
-      router.push("/");
+      router.push("/community");
     } catch (error: any) {
       toast.error(error.response?.data?.error || "Invalid email or password");
     }
@@ -53,7 +53,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Email</label>
-            <input 
+            <input
               {...register("email")}
               type="email"
               className="w-full bg-black border border-zinc-700 p-3 text-white focus:border-red-600 outline-none transition"
@@ -64,7 +64,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Password</label>
-            <input 
+            <input
               {...register("password")}
               type="password"
               className="w-full bg-black border border-zinc-700 p-3 text-white focus:border-red-600 outline-none transition"
@@ -73,8 +73,8 @@ export default function LoginPage() {
             {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={isSubmitting}
             className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-12 mt-4 uppercase tracking-widest transition-colors flex items-center justify-center"
           >
