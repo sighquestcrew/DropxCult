@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 
+const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || "fallback-secret";
+
 // Helper to check if user is Admin
 const isAdmin = (req: Request) => {
   const authHeader = req.headers.get("authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) return false;
   const token = authHeader.split(" ")[1];
   try {
-    const decoded: any = jwt.verify(token, process.env.NEXTAUTH_SECRET!);
+    const decoded: any = jwt.verify(token, JWT_SECRET);
     return decoded.isAdmin === true;
   } catch (error) {
     return false;

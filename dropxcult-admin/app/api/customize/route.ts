@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 
+const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || "fallback-secret";
+
 // Helper to get user from Token
 const getUserFromRequest = (req: Request) => {
   const authHeader = req.headers.get("authorization");
@@ -10,8 +12,8 @@ const getUserFromRequest = (req: Request) => {
   }
   const token = authHeader.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET!);
-    return decoded as { _id: string; isAdmin: boolean };
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded as { id: string; isAdmin: boolean };
   } catch (error) {
     return null;
   }
@@ -32,7 +34,7 @@ export async function POST(req: Request) {
 
     const newRequest = await prisma.customRequest.create({
       data: {
-        userId: user._id,
+        userId: user.id,
         leftSleeveImage: leftImage,
         rightSleeveImage: rightImage,
         ...rest,
@@ -55,7 +57,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const where = user.isAdmin ? {} : { userId: user._id };
+    const where = user.isAdmin ? {} : { userId: user.id };
 
     const requests = await prisma.customRequest.findMany({
       where,

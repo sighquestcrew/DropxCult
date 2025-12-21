@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 
+const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || "fallback-secret";
+
 const getUser = (req: Request) => {
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
     const token = authHeader.split(" ")[1];
     try {
-        return jwt.verify(token, process.env.NEXTAUTH_SECRET!) as { _id: string; isAdmin: boolean };
+        return jwt.verify(token, JWT_SECRET) as { id: string; isAdmin: boolean };
     } catch {
         return null;
     }
@@ -23,7 +25,7 @@ export async function GET(req: Request) {
         // For users: show their own designs (including drafts)
         const where = user.isAdmin
             ? { status: { not: "Draft" } }  // Hide drafts from admin
-            : { userId: user._id };
+            : { userId: user.id };
 
         const designs = await prisma.design.findMany({
             where,

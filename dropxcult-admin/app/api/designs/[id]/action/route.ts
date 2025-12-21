@@ -4,12 +4,14 @@ import jwt from "jsonwebtoken";
 import { logAudit } from "@/lib/audit";
 import { sendDesignStatusEmail } from "@/lib/email";
 
+const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || "fallback-secret";
+
 const getUser = (req: Request) => {
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
     const token = authHeader.split(" ")[1];
     try {
-        return jwt.verify(token, process.env.NEXTAUTH_SECRET!) as { _id: string; isAdmin: boolean };
+        return jwt.verify(token, JWT_SECRET) as { id: string; isAdmin: boolean };
     } catch {
         return null;
     }
@@ -28,7 +30,7 @@ export async function POST(
 
         // Get admin email for audit logging
         const adminUser = await prisma.user.findUnique({
-            where: { id: user._id },
+            where: { id: user.id },
             select: { email: true }
         });
 
@@ -79,7 +81,7 @@ export async function POST(
         // Audit log: Admin design action
         const auditAction = action === "accept" ? "APPROVE" : action === "reject" ? "REJECT" : "STATUS_CHANGE";
         await logAudit({
-            userId: user._id,
+            userId: user.id,
             userEmail: adminUser?.email,
             userRole: "admin",
             action: auditAction,

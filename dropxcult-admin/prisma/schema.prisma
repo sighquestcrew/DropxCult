@@ -448,7 +448,15 @@ model PreOrderEntryItem {
   createdAt       DateTime @default(now())
 }
 
-
-
-
-
+// Two-Factor Authentication codes for admin login
+model TwoFactorCode {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  code      String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([expiresAt])
+}

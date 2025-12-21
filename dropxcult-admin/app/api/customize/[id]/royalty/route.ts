@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 
+const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || "fallback-secret";
+
 const getUser = (req: Request) => {
   const authHeader = req.headers.get("authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
   const token = authHeader.split(" ")[1];
   try {
-    return jwt.verify(token, process.env.NEXTAUTH_SECRET!) as { _id: string };
+    return jwt.verify(token, JWT_SECRET) as { id: string };
   } catch (error) {
     return null;
   }
@@ -25,7 +27,7 @@ export async function POST(
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const customReq = await prisma.customRequest.findFirst({
-      where: { id: id, userId: user._id }
+      where: { id: id, userId: user.id }
     });
 
     if (!customReq) return NextResponse.json({ error: "Not found" }, { status: 404 });
