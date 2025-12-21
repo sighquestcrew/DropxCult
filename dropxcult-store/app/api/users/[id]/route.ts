@@ -27,6 +27,7 @@ export async function GET(
                 id: true,
                 name: true,
                 image: true,
+                banner: true,
                 bio: true,
                 rank: true,
                 createdAt: true,

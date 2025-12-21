@@ -76,6 +76,7 @@ const Footer = () => {
                                 <button
                                     type="submit"
                                     className="bg-white text-black px-4 py-2 rounded hover:bg-gray-200 transition-colors"
+                                    aria-label="Subscribe to newsletter"
                                 >
                                     <Send size={18} />
                                 </button>

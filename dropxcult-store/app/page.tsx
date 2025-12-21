@@ -138,6 +138,8 @@ export default function Home() {
         {/* Video Background */}
         <video
           autoPlay loop muted playsInline
+          preload="auto"
+          poster="/grid.svg"
           className="absolute inset-0 w-full h-full object-contain opacity-60"
         >
           <source src="/65f6776adcbc7d17dbd30416_68281335d591a236c7c0fd24_walkingtshirtv3-transcode (1).mp4" type="video/mp4" />
@@ -251,7 +253,7 @@ export default function Home() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {products?.slice(0, 4).map((product) => (
-            <Link key={product.id} href={`/product/${product.slug}`}>
+            <Link key={product.id} href={`/product/${product.slug}`} aria-label={`View ${product.name}`}>
               <div className="group bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:border-red-600/50 transition-all duration-300 hover:-translate-y-2">
                 <div className="aspect-square relative overflow-hidden bg-zinc-800">
                   <Image
@@ -259,7 +261,7 @@ export default function Home() {
                     alt={product.name}
                     fill
                     className="object-cover group-hover:scale-110 transition-transform duration-500"
-                    unoptimized
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
                   />
                 </div>
                 <div className="p-4">
@@ -271,7 +273,10 @@ export default function Home() {
                   </h3>
                   <div className="flex items-center justify-between">
                     <span className="text-xl font-bold text-white">₹{product.price}</span>
-                    <button className="bg-red-600 text-white p-2 rounded-lg hover:bg-red-700 transition-colors">
+                    <button
+                      className="bg-red-600 text-white p-2 rounded-lg hover:bg-red-700 transition-colors"
+                      aria-label="Add to cart"
+                    >
                       <ShoppingCart className="h-4 w-4" />
                     </button>
                   </div>
@@ -294,7 +299,13 @@ export default function Home() {
             {designs?.slice(0, 4).map((design, i) => (
               <div key={design.id || i} className="group relative aspect-square rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800 hover:border-red-600/50 transition-all">
                 {design.previewImage ? (
-                  <Image src={design.previewImage} alt={design.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" unoptimized />
+                  <Image
+                    src={design.previewImage}
+                    alt={`Design by ${design.user?.name || "Community"}`}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    sizes="(max-width: 768px) 50vw, 25vw"
+                  />
                 ) : (
                   <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
                     <Palette className="w-12 h-12 text-zinc-600" />

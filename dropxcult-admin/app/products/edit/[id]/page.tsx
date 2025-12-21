@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import axios from "axios";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, UploadCloud, ArrowLeft } from "lucide-react";
+import { Loader2, UploadCloud, ArrowLeft, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import slugify from "slugify";
@@ -16,7 +16,7 @@ export default function EditProductPage() {
     const params = useParams();
     const productId = params.id as string;
     const [uploading, setUploading] = useState(false);
-    const [imageUrl, setImageUrl] = useState("");
+    const [imageUrls, setImageUrls] = useState<string[]>([]);
 
     const { register, handleSubmit, setValue, watch, formState: { isSubmitting } } = useForm();
 
@@ -24,9 +24,11 @@ export default function EditProductPage() {
     const { data: product, isLoading } = useQuery({
         queryKey: ["product", productId],
         queryFn: async () => {
-            const { data } = await axios.get(`/api/products?id=${productId}`);
-            return data.find((p: any) => p.id === productId);
+            const { data } = await axios.get(`/api/products?search=`);
+            // API returns { products: [...] }, so we need to find in products array
+            return data.products?.find((p: any) => p.id === productId) || null;
         },
+        enabled: !!productId,
     });
 
     // Populate form when product data is loaded
@@ -34,9 +36,10 @@ export default function EditProductPage() {
         if (product) {
             setValue("name", product.name);
             setValue("price", product.price);
+            setValue("stock", product.stock);
             setValue("category", product.category);
             setValue("description", product.description);
-            setImageUrl(product.images[0]);
+            setImageUrls(product.images || []);
         }
     }, [product, setValue]);
 
@@ -44,30 +47,42 @@ export default function EditProductPage() {
     const generatedSlug = nameValue ? slugify(nameValue, { lower: true, strict: true }) : product?.slug || "";
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
 
         setUploading(true);
-        const formData = new FormData();
-        formData.append("file", file);
 
         try {
-            const { data } = await axios.post("/api/upload", formData);
-            setImageUrl(data.url);
-            toast.success("Image uploaded!");
+            for (const file of Array.from(files)) {
+                const formData = new FormData();
+                formData.append("file", file);
+                const { data } = await axios.post("/api/upload", formData);
+                setImageUrls(prev => [...prev, data.url]);
+            }
+            toast.success(`${files.length} image(s) uploaded!`);
         } catch (error) {
             toast.error("Image upload failed");
         } finally {
             setUploading(false);
+            e.target.value = "";
         }
+    };
+
+    const removeImage = (index: number) => {
+        setImageUrls(prev => prev.filter((_, i) => i !== index));
     };
 
     const onSubmit = async (data: any) => {
         try {
+            if (imageUrls.length === 0) {
+                toast.error("Please upload at least one image");
+                return;
+            }
+
             await axios.put(`/api/products/${productId}`, {
                 ...data,
                 slug: generatedSlug,
-                image: imageUrl,
+                images: imageUrls,
             });
 
             toast.success("Product Updated Successfully");
@@ -116,8 +131,8 @@ export default function EditProductPage() {
                     />
                 </div>
 
-                {/* Price & Category */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* Price, Stock & Category */}
+                <div className="grid grid-cols-3 gap-4">
                     <div>
                         <label className="block text-sm font-bold text-gray-400 mb-1">Price (₹)</label>
                         <input
@@ -125,6 +140,15 @@ export default function EditProductPage() {
                             {...register("price", { required: true })}
                             className="w-full bg-black border border-zinc-700 p-3 rounded text-white focus:border-red-600 outline-none"
                             placeholder="1499"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-400 mb-1">Stock</label>
+                        <input
+                            type="number"
+                            {...register("stock", { required: true, min: 0 })}
+                            className="w-full bg-black border border-zinc-700 p-3 rounded text-white focus:border-red-600 outline-none"
+                            placeholder="50"
                         />
                     </div>
                     <div>
@@ -151,22 +175,47 @@ export default function EditProductPage() {
                     />
                 </div>
 
-                {/* Image Upload */}
+                {/* Multiple Image Upload */}
                 <div>
-                    <label className="block text-sm font-bold text-gray-400 mb-2">Product Image</label>
-                    <div className="flex items-center gap-4">
-                        {imageUrl && (
-                            <div className="relative h-24 w-24 rounded overflow-hidden border border-zinc-700">
-                                <Image src={imageUrl} alt="Preview" fill className="object-cover" unoptimized />
-                            </div>
-                        )}
+                    <label className="block text-sm font-bold text-gray-400 mb-2">
+                        Product Images ({imageUrls.length} uploaded)
+                    </label>
 
-                        <label className="cursor-pointer bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded flex items-center gap-2 transition border border-zinc-700">
-                            {uploading ? <Loader2 className="animate-spin" /> : <UploadCloud />}
-                            {uploading ? "Uploading..." : "Change Image"}
-                            <input type="file" onChange={handleImageUpload} className="hidden" accept="image/*" />
-                        </label>
-                    </div>
+                    {/* Image Preview Grid */}
+                    {imageUrls.length > 0 && (
+                        <div className="grid grid-cols-4 gap-3 mb-4">
+                            {imageUrls.map((url, index) => (
+                                <div key={index} className="relative aspect-square rounded overflow-hidden border border-zinc-700 group">
+                                    <Image src={url} alt={`Preview ${index + 1}`} fill className="object-cover" unoptimized />
+                                    <button
+                                        type="button"
+                                        onClick={() => removeImage(index)}
+                                        className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                    {index === 0 && (
+                                        <span className="absolute bottom-1 left-1 bg-black/80 text-xs text-white px-2 py-0.5 rounded">
+                                            Main
+                                        </span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <label className="cursor-pointer bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded flex items-center gap-2 transition border border-zinc-700 w-fit">
+                        {uploading ? <Loader2 className="animate-spin" /> : <UploadCloud />}
+                        {uploading ? "Uploading..." : "Add Images"}
+                        <input
+                            type="file"
+                            onChange={handleImageUpload}
+                            className="hidden"
+                            accept="image/*"
+                            multiple
+                        />
+                    </label>
+                    <p className="text-xs text-gray-500 mt-2">First image will be used as the main product image</p>
                 </div>
 
                 <button

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     template: "%s | DropXCult"
   },
   description: "Premium streetwear inspired by Ancient Mythology and Auspicious Beasts. Design your own custom t-shirts or shop community creations. Free shipping on orders over ₹999.",
-  keywords: ["custom t-shirts", "streetwear", "mythology clothing", "custom design t-shirt", "online t-shirt design", "graphic tees", "printed t-shirts india", "custom apparel", "community designs", "dropxcult"],
+  keywords: ["custom oversized t-shirts", "streetwear india", "mythology clothing", "heavyweight cotton t-shirts", "custom 3d t-shirt design", "dropxcult", "puff print t-shirts", "graphic tees india", "anime streetwear", "urban clothing"],
   authors: [{ name: "DropXCult" }],
   creator: "DropXCult",
   publisher: "DropXCult",
@@ -57,9 +57,13 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  verification: {
-    google: "your-google-verification-code", // Replace with actual code
-  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#000000',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({

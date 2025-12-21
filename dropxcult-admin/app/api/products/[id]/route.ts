@@ -37,8 +37,9 @@ export async function PUT(
         slug: body.slug,
         description: body.description,
         price: parseFloat(body.price),
+        stock: parseInt(body.stock) || 0,
         category: body.category,
-        images: [body.image], // Assuming single image for now
+        images: body.images || (body.image ? [body.image] : undefined),
       },
     });
 

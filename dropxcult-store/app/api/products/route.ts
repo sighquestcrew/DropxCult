@@ -1,5 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
+import jwt from "jsonwebtoken";
+
+const getDataFromToken = (request: NextRequest) => {
+  try {
+    const token = request.cookies.get("token")?.value || "";
+    if (!token) return null;
+    const decoded: any = jwt.verify(token, process.env.TOKEN_SECRET!);
+    return decoded.id;
+  } catch (error: any) {
+    return null;
+  }
+}
 
 export async function GET(req: Request) {
   try {
@@ -33,7 +45,7 @@ export async function GET(req: Request) {
       name: design.name,
       slug: `design-${design.id}`,
       description: `3D Custom Design by ${design.user?.name || 'Designer'}`,
-      price: 1299, // Default price for custom designs
+      price: 999, // Fixed price for all custom designs
       category: "Custom Design",
       images: design.previewImage ? [design.previewImage] : [],
       sizes: ["S", "M", "L", "XL"],
@@ -59,25 +71,47 @@ export async function GET(req: Request) {
   }
 }
 
+import { z } from "zod";
+
+const productSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  price: z.number().min(0, "Price must be positive"),
+  slug: z.string().min(1, "Slug is required"),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  image: z.string().url("Invalid image URL"),
+});
+
 // ADD THIS BELOW THE GET FUNCTION:
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const userId = getDataFromToken(req);
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isAdmin) {
+      return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+    }
+
     const body = await req.json();
 
-    const { name, price, description, category, image, slug } = body;
-
-    // Basic Validation
-    if (!name || !price || !image || !slug) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    // Zod Validation
+    const result = productSchema.safeParse(body);
+    if (!result.success) {
+      return NextResponse.json({ error: result.error.issues[0].message }, { status: 400 });
     }
+
+    const { name, price, slug, description, category, image } = result.data;
 
     const product = await prisma.product.create({
       data: {
         name,
         slug,
-        description,
+        description: description || "",
         price: Number(price),
-        category,
+        category: category || "General",
         images: [image], // We store it as an array
         sizes: ["S", "M", "L", "XL"], // Default sizes
         stock: 50, // Default stock

@@ -80,10 +80,11 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const { name, price, description, category, image, slug } = body;
+    const { name, price, description, category, images, slug } = body;
 
-    // Basic Validation
-    if (!name || !price || !image || !slug) {
+    // Basic Validation - accept both 'images' array or legacy 'image' string
+    const imageArray = images || (body.image ? [body.image] : []);
+    if (!name || !price || imageArray.length === 0 || !slug) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -94,7 +95,7 @@ export async function POST(req: Request) {
         description,
         price: Number(price),
         category,
-        images: [image],
+        images: imageArray,
         sizes: ["S", "M", "L", "XL"],
         stock: 50,
         isFeatured: false,

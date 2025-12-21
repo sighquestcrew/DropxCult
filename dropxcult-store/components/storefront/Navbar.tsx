@@ -46,6 +46,7 @@ export default function Navbar() {
         <button
           className="md:hidden text-gray-300 hover:text-white"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label="Toggle mobile menu"
         >
           {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -89,6 +90,7 @@ export default function Navbar() {
               <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
                 className="flex items-center gap-2 hover:text-white text-gray-300 transition focus:outline-none"
+                aria-label="Open user menu"
               >
                 <div className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700">
                   {userInfo.image ? (
@@ -140,14 +142,14 @@ export default function Navbar() {
             </div>
           ) : (
             isMounted && (
-              <Link href="/login" className="text-gray-300 hover:text-white">
+              <Link href="/login" className="text-gray-300 hover:text-white" aria-label="Login">
                 <User className="h-6 w-6" />
               </Link>
             )
           )}
 
           {/* Cart Icon */}
-          <Link href="/cart" className="relative group">
+          <Link href="/cart" className="relative group" aria-label="View shopping cart">
             <ShoppingBag className="h-6 w-6 text-gray-300 group-hover:text-white transition-colors" />
             {isMounted && cartCount > 0 && (
               <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white">

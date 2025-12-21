@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Loader2, Plus, CheckCircle, XCircle, AlertTriangle, ShoppingCart, Trash2, Pencil, Globe, GlobeLock, MoreVertical } from "lucide-react";
+import { Loader2, Plus, CheckCircle, XCircle, AlertTriangle, ShoppingCart, Trash2, Pencil, Globe, GlobeLock, MoreVertical, HelpCircle } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useSelector, useDispatch } from "react-redux";
@@ -19,6 +19,7 @@ export default function CustomizeDashboard() {
   const [renameModal, setRenameModal] = React.useState<{ open: boolean; designId: string; currentName: string; newName: string }>({ open: false, designId: "", currentName: "", newName: "" });
   const [loadingId, setLoadingId] = React.useState<string | null>(null); // Track which item is loading
   const [openMenuId, setOpenMenuId] = React.useState<string | null>(null); // Track which action menu is open
+  const [royaltyInfoModal, setRoyaltyInfoModal] = React.useState(false); // Modal state for help info
 
   React.useEffect(() => {
     setIsMounted(true);
@@ -201,9 +202,8 @@ export default function CustomizeDashboard() {
     const req = cartModal.design;
     if (!req) return;
 
-    // Calculate price
-    const is3DOversized = req.tshirtType === "oversized";
-    const price = is3DOversized ? 1199 : 999;
+    // Calculate price - flat ₹999 for all custom designs
+    const price = 999;
 
     dispatch(addToCart({
       id: req.id,
@@ -320,12 +320,20 @@ export default function CustomizeDashboard() {
                     </button>
                   )}
 
-                  {/* Royalty Pending Alert - Restored */}
+                  {/* Royalty Pending Alert */}
                   {req.status === "Royalty_Pending" && (
                     <div className="bg-yellow-900/20 border border-yellow-600/30 p-2 rounded text-center mb-2">
                       <p className="text-yellow-500 text-xs font-bold mb-2 flex items-center justify-center gap-1">
                         <AlertTriangle size={12} /> Make Public?
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setRoyaltyInfoModal(true); }}
+                          className="text-gray-400 hover:text-white transition-colors"
+                          title="What does this mean?"
+                        >
+                          <HelpCircle size={12} />
+                        </button>
                       </p>
+
                       <div className="flex gap-2 justify-center">
                         <button onClick={() => handleRoyalty(req.id, true)} className="bg-green-600 text-white text-[10px] px-2 py-1 rounded hover:bg-green-500">Accept</button>
                         <button onClick={() => handleRoyalty(req.id, false)} className="bg-red-600 text-white text-[10px] px-2 py-1 rounded hover:bg-red-500">Reject</button>
@@ -623,6 +631,54 @@ export default function CustomizeDashboard() {
                 Save
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Royalty Info Modal */}
+      {royaltyInfoModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200" onClick={() => setRoyaltyInfoModal(false)}>
+          <div className="bg-zinc-900 border border-yellow-600/30 rounded-xl p-6 w-full max-w-sm relative shadow-2xl scale-100 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setRoyaltyInfoModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white"
+            >
+              <XCircle size={20} />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-yellow-500/10 p-3 rounded-full">
+                <AlertTriangle className="text-yellow-500" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-white">Make Public?</h3>
+            </div>
+
+            <p className="text-gray-300 text-sm mb-4 leading-relaxed">
+              Does DropXCult want to officially sell your design?
+            </p>
+
+            <div className="space-y-3">
+              <div className="bg-black/40 border border-green-900/30 p-3 rounded-lg flex gap-3">
+                <CheckCircle className="text-green-500 shrink-0 mt-0.5" size={18} />
+                <div>
+                  <p className="text-green-400 font-bold text-sm">Accept</p>
+                  <p className="text-gray-400 text-xs">We sell it in the Store. You earn a <span className="text-white font-semibold">Royalty Commission</span> on every sale.</p>
+                </div>
+              </div>
+
+              <div className="bg-black/40 border border-red-900/30 p-3 rounded-lg flex gap-3">
+                <XCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
+                <div>
+                  <p className="text-red-400 font-bold text-sm">Reject</p>
+                  <p className="text-gray-400 text-xs">Remains your private creation. It will <span className="text-white font-semibold">NOT</span> be sold or listed.</p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setRoyaltyInfoModal(false)}
+              className="w-full mt-6 bg-white text-black font-bold py-3 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Got it
+            </button>
           </div>
         </div>
       )}

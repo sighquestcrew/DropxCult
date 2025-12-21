@@ -1,8 +1,39 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const rateLimitMap = new Map();
+
 export function middleware(request: NextRequest) {
     const response = NextResponse.next();
+    const ip = request.ip || '127.0.0.1';
+
+    // 🛑 Rate Limiting (Basic In-Memory)
+    // Only apply to /api routes
+    if (request.nextUrl.pathname.startsWith('/api')) {
+        const limit = 20; // 20 requests per minute
+        const windowMs = 60 * 1000;
+
+        if (!rateLimitMap.has(ip)) {
+            rateLimitMap.set(ip, { count: 0, lastReset: Date.now() });
+        }
+
+        const ipData = rateLimitMap.get(ip);
+
+        // Reset if window has passed
+        if (Date.now() - ipData.lastReset > windowMs) {
+            ipData.count = 0;
+            ipData.lastReset = Date.now();
+        }
+
+        if (ipData.count >= limit) {
+            return new NextResponse(
+                JSON.stringify({ error: "Too many requests" }),
+                { status: 429, headers: { 'Content-Type': 'application/json' } }
+            );
+        }
+
+        ipData.count += 1;
+    }
 
     // ✅ Security Headers - Protection against common attacks
 
