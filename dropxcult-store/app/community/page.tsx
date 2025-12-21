@@ -346,51 +346,55 @@ export default function CommunityPage() {
                                         </div>
 
                                         {/* Actions */}
-                                        <div className="flex items-center gap-2 sm:gap-4 mt-4 flex-wrap">
-                                            <button
-                                                onClick={() => design.is3D && setSelectedDesign(design)}
-                                                className="flex items-center gap-1.5 text-gray-500 hover:text-blue-500 transition p-1.5 sm:p-2 rounded-full hover:bg-blue-500/10"
-                                            >
-                                                <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
-                                                <span className="text-xs sm:text-sm">{design.commentsCount || 0}</span>
-                                            </button>
-
-                                            <button
-                                                onClick={() => design.is3D && likeMutation.mutate(design.id)}
-                                                className={`flex items-center gap-1.5 transition p-1.5 sm:p-2 rounded-full hover:bg-red-500/10 ${likedDesigns.has(design.id) ? "text-red-500" : "text-gray-500 hover:text-red-500"
-                                                    }`}
-                                            >
-                                                <Heart size={16} className={`sm:w-[18px] sm:h-[18px] ${likedDesigns.has(design.id) ? "fill-red-500" : ""}`} />
-                                                <span className="text-xs sm:text-sm">{design.likesCount || 0}</span>
-                                            </button>
-
-                                            <button
-                                                onClick={() => handleShare(design)}
-                                                className="flex items-center gap-1.5 text-gray-500 hover:text-green-500 transition p-1.5 sm:p-2 rounded-full hover:bg-green-500/10"
-                                            >
-                                                <Share2 size={16} className="sm:w-[18px] sm:h-[18px]" />
-                                                <span className="text-xs sm:text-sm">{design.sharesCount || 0}</span>
-                                            </button>
-
-                                            {design.is3D && (
-                                                <a
-                                                    href={`${process.env.NEXT_PUBLIC_EDITOR_URL || 'http://localhost:3000'}?designId=${design.id}&viewOnly=true`}
-                                                    target="_blank"
-                                                    className="flex items-center text-gray-500 hover:text-purple-500 transition p-1.5 sm:p-2 rounded-full hover:bg-purple-500/10"
-                                                    title="View in 3D"
-                                                >
-                                                    <Eye size={16} className="sm:w-[18px] sm:h-[18px]" />
-                                                </a>
-                                            )}
-
-                                            {design.is3D && (
+                                        <div className="mt-4 space-y-3">
+                                            {/* Social actions */}
+                                            <div className="flex items-center gap-3 sm:gap-4">
                                                 <button
-                                                    onClick={() => handleBuyDesign(design)}
-                                                    className="flex items-center gap-1 text-gray-500 hover:text-yellow-500 transition p-1.5 sm:p-2 rounded-full hover:bg-yellow-500/10 ml-auto"
+                                                    onClick={() => design.is3D && setSelectedDesign(design)}
+                                                    className="flex items-center gap-1.5 text-gray-500 hover:text-blue-500 transition p-1.5 sm:p-2 rounded-full hover:bg-blue-500/10"
                                                 >
-                                                    <ShoppingCart size={16} className="sm:w-[18px] sm:h-[18px]" />
-                                                    <span className="hidden sm:inline text-sm">₹999</span>
+                                                    <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                                    <span className="text-xs sm:text-sm">{design.commentsCount || 0}</span>
                                                 </button>
+
+                                                <button
+                                                    onClick={() => design.is3D && likeMutation.mutate(design.id)}
+                                                    className={`flex items-center gap-1.5 transition p-1.5 sm:p-2 rounded-full hover:bg-red-500/10 ${likedDesigns.has(design.id) ? "text-red-500" : "text-gray-500 hover:text-red-500"
+                                                        }`}
+                                                >
+                                                    <Heart size={16} className={`sm:w-[18px] sm:h-[18px] ${likedDesigns.has(design.id) ? "fill-red-500" : ""}`} />
+                                                    <span className="text-xs sm:text-sm">{design.likesCount || 0}</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => handleShare(design)}
+                                                    className="flex items-center gap-1.5 text-gray-500 hover:text-green-500 transition p-1.5 sm:p-2 rounded-full hover:bg-green-500/10"
+                                                >
+                                                    <Share2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                                    <span className="text-xs sm:text-sm">{design.sharesCount || 0}</span>
+                                                </button>
+                                            </div>
+
+                                            {/* Buy/View buttons - separate row */}
+                                            {design.is3D && (
+                                                <div className="flex gap-2">
+                                                    <a
+                                                        href={`${process.env.NEXT_PUBLIC_EDITOR_URL || 'http://localhost:3000'}?designId=${design.id}&viewOnly=true`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white py-2 rounded-lg font-medium transition"
+                                                    >
+                                                        <Eye size={16} />
+                                                        <span className="text-sm">View 3D</span>
+                                                    </a>
+                                                    <button
+                                                        onClick={() => handleBuyDesign(design)}
+                                                        className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-medium transition"
+                                                    >
+                                                        <ShoppingCart size={16} />
+                                                        <span className="text-sm">₹999</span>
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -532,22 +536,43 @@ export default function CommunityPage() {
                     {/* What's Trending */}
                     <div className="bg-zinc-900 rounded-2xl p-4">
                         <h2 className="text-xl font-bold mb-4">What&apos;s trending</h2>
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             {data?.feed
                                 ?.filter((d: any) => d.is3D)
                                 .sort((a: any, b: any) => (b.likesCount || 0) - (a.likesCount || 0))
                                 .slice(0, 4)
                                 .map((design: any, index: number) => (
-                                    <div key={design.id} className="group cursor-pointer">
-                                        <p className="text-xs text-gray-500">
-                                            {index + 1} · {period === "daily" ? "Today" : period === "weekly" ? "This week" : "Trending"}
-                                        </p>
-                                        <p className="font-bold group-hover:text-blue-500 transition truncate">
-                                            {design.name}
-                                        </p>
-                                        <p className="text-xs text-gray-500 flex items-center gap-1">
-                                            <Heart size={12} className="text-red-500" /> {design.likesCount || 0} likes
-                                        </p>
+                                    <div key={design.id} className="bg-zinc-950 rounded-xl p-3 border border-zinc-800 hover:border-red-600/50 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <div className="text-xl font-bold text-red-600 w-6">{index + 1}</div>
+                                            {design.previewImage && (
+                                                <div className="h-12 w-12 rounded-lg bg-zinc-800 overflow-hidden flex-shrink-0">
+                                                    <img src={design.previewImage} alt="" className="h-full w-full object-cover" />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-bold truncate text-sm">{design.name}</p>
+                                                <p className="text-xs text-gray-500 flex items-center gap-1">
+                                                    <Heart size={12} className="text-red-500 fill-red-500" /> {design.likesCount || 0} likes
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2 mt-2">
+                                            <a
+                                                href={`${process.env.NEXT_PUBLIC_EDITOR_URL || 'http://localhost:3000'}?designId=${design.id}&viewOnly=true`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-zinc-800 text-white rounded-lg text-xs font-medium hover:bg-zinc-700 transition"
+                                            >
+                                                <Eye size={14} /> View
+                                            </a>
+                                            <button
+                                                onClick={() => handleBuyDesign(design)}
+                                                className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 transition"
+                                            >
+                                                <ShoppingBag size={14} /> ₹999
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                         </div>
@@ -642,110 +667,173 @@ export default function CommunityPage() {
 
                                 {/* SEARCH VIEW */}
                                 {mobileView === "search" && (
-                                    <div className="relative">
-                                        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-                                        <input
-                                            type="text"
-                                            placeholder="Search @username or name"
-                                            value={searchQuery}
-                                            autoFocus
-                                            onChange={(e) => {
-                                                const query = e.target.value;
-                                                setSearchQuery(query);
+                                    <div className="flex flex-col h-full">
+                                        {/* Pinned Search Input */}
+                                        <div className="relative flex-shrink-0 sticky top-0 bg-zinc-900 pb-4 z-10">
+                                            <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+                                            <input
+                                                type="text"
+                                                placeholder="Search @username or name"
+                                                value={searchQuery}
+                                                autoFocus
+                                                onChange={(e) => {
+                                                    const query = e.target.value;
+                                                    setSearchQuery(query);
 
-                                                if (searchTimeout.current) clearTimeout(searchTimeout.current);
-                                                if (query.length >= 2) {
-                                                    setIsSearching(true);
-                                                    searchTimeout.current = setTimeout(async () => {
-                                                        try {
-                                                            const { data } = await axios.get(`/api/users/search?q=${encodeURIComponent(query)}`);
-                                                            setSearchResults(data.users || []);
-                                                        } catch {
-                                                            setSearchResults([]);
-                                                        } finally {
-                                                            setIsSearching(false);
-                                                        }
-                                                    }, 300);
-                                                } else {
-                                                    setSearchResults([]);
-                                                    setIsSearching(false);
-                                                }
-                                            }}
-                                            className="w-full bg-zinc-950 border border-zinc-800 rounded-full py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                        />
+                                                    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+                                                    if (query.length >= 2) {
+                                                        setIsSearching(true);
+                                                        searchTimeout.current = setTimeout(async () => {
+                                                            try {
+                                                                const { data } = await axios.get(`/api/users/search?q=${encodeURIComponent(query)}`);
+                                                                setSearchResults(data.users || []);
+                                                            } catch {
+                                                                setSearchResults([]);
+                                                            } finally {
+                                                                setIsSearching(false);
+                                                            }
+                                                        }, 300);
+                                                    } else {
+                                                        setSearchResults([]);
+                                                        setIsSearching(false);
+                                                    }
+                                                }}
+                                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-4 pl-12 pr-4 text-base focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                                            />
+                                        </div>
 
-                                        {/* Search Results */}
-                                        {(searchResults.length > 0 || isSearching) && searchQuery.length >= 2 && (
-                                            <div className="mt-4 bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
-                                                {isSearching ? (
-                                                    <div className="p-4 text-center text-gray-500">
-                                                        <Loader2 size={20} className="animate-spin mx-auto" />
-                                                    </div>
-                                                ) : searchResults.length > 0 ? (
-                                                    <div className="divide-y divide-zinc-800">
-                                                        {searchResults.map((user: any) => (
-                                                            <Link
-                                                                key={user.id}
-                                                                href={`/user/${user.id}`}
-                                                                onClick={() => {
-                                                                    setSearchQuery("");
-                                                                    setSearchResults([]);
-                                                                    setMobileView(null);
-                                                                }}
-                                                                className="flex items-center gap-3 p-3 hover:bg-zinc-800 transition"
-                                                            >
-                                                                <div className="h-10 w-10 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
-                                                                    {user.image ? (
-                                                                        <img src={user.image} className="w-full h-full object-cover" alt="" />
-                                                                    ) : (
-                                                                        <div className="w-full h-full flex items-center justify-center">
-                                                                            <User size={18} className="text-gray-600" />
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="font-bold text-sm truncate">{user.name}</p>
-                                                                    <p className="text-xs text-gray-500">@{user.username || user.name?.toLowerCase().replace(/\s/g, '')}</p>
-                                                                </div>
-                                                                <span className={`text-xs px-1.5 py-0.5 rounded ${getRankColor(user.rank)}`}>
-                                                                    {user.rank}
-                                                                </span>
-                                                            </Link>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <div className="p-4 text-center text-gray-500 text-sm">
-                                                        No users found
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
+                                        {/* Scrollable Search Results */}
+                                        <div className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom,50px)]">
+                                            {(searchResults.length > 0 || isSearching) && searchQuery.length >= 2 && (
+                                                <div className="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+                                                    {isSearching ? (
+                                                        <div className="p-6 text-center text-gray-500">
+                                                            <Loader2 size={24} className="animate-spin mx-auto" />
+                                                        </div>
+                                                    ) : searchResults.length > 0 ? (
+                                                        <div className="divide-y divide-zinc-800">
+                                                            {searchResults.map((user: any) => (
+                                                                <Link
+                                                                    key={user.id}
+                                                                    href={`/user/${user.id}`}
+                                                                    onClick={() => {
+                                                                        setSearchQuery("");
+                                                                        setSearchResults([]);
+                                                                        setMobileView(null);
+                                                                    }}
+                                                                    className="flex items-center gap-4 p-4 hover:bg-zinc-800 transition"
+                                                                >
+                                                                    <div className="h-12 w-12 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0">
+                                                                        {user.image ? (
+                                                                            <img src={user.image} className="w-full h-full object-cover" alt="" />
+                                                                        ) : (
+                                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                                <User size={20} className="text-gray-600" />
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="font-bold text-base truncate">{user.name}</p>
+                                                                        <p className="text-sm text-gray-500">@{user.username || user.name?.toLowerCase().replace(/\s/g, '')}</p>
+                                                                    </div>
+                                                                    <span className={`text-xs px-2 py-1 rounded ${getRankColor(user.rank)}`}>
+                                                                        {user.rank}
+                                                                    </span>
+                                                                </Link>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="p-6 text-center text-gray-500">
+                                                            No users found
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Empty state placeholder */}
+                                            {searchQuery.length < 2 && (
+                                                <div className="text-center text-gray-600 py-12">
+                                                    <Search size={48} className="mx-auto mb-4 opacity-30" />
+                                                    <p>Type at least 2 characters to search</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
 
                                 {/* TRENDING VIEW */}
                                 {mobileView === "trending" && (
                                     <div className="space-y-4">
+                                        {/* Period Filter */}
+                                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                            {[
+                                                { value: "today", label: "Today" },
+                                                { value: "week", label: "This Week" },
+                                                { value: "month", label: "This Month" },
+                                                { value: "alltime", label: "All Time" }
+                                            ].map((p) => (
+                                                <button
+                                                    key={p.value}
+                                                    onClick={() => setPeriod(p.value)}
+                                                    className={`px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition ${period === p.value
+                                                        ? "bg-white text-black"
+                                                        : "bg-zinc-800 text-gray-400 hover:text-white"
+                                                        }`}
+                                                >
+                                                    {p.label}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Trending Designs List */}
                                         {data?.feed
                                             ?.filter((d: any) => d.is3D)
                                             .sort((a: any, b: any) => (b.likesCount || 0) - (a.likesCount || 0))
                                             .slice(0, 5)
                                             .map((design: any, index: number) => (
-                                                <div key={design.id} className="group cursor-pointer bg-zinc-950 p-3 rounded-xl border border-zinc-800 flex items-center gap-4">
-                                                    <div className="text-2xl font-bold text-zinc-700 w-8 text-center">{index + 1}</div>
-                                                    <div className="flex-1">
-                                                        <p className="font-bold group-hover:text-blue-500 transition truncate text-lg">
-                                                            {design.name}
-                                                        </p>
-                                                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                                                            <Heart size={12} className="text-red-500 fill-red-500" /> {design.likesCount || 0} likes
-                                                        </p>
-                                                    </div>
-                                                    {design.previewImage && (
-                                                        <div className="h-12 w-12 rounded-lg bg-zinc-800 overflow-hidden">
-                                                            <img src={design.previewImage} alt="" className="h-full w-full object-cover" />
+                                                <div
+                                                    key={design.id}
+                                                    className="bg-zinc-950 p-4 rounded-xl border border-zinc-800"
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="text-3xl font-bold text-red-600 w-10 text-center">{index + 1}</div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-bold truncate text-lg">
+                                                                {design.name}
+                                                            </p>
+                                                            <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
+                                                                <Heart size={14} className="text-red-500 fill-red-500" /> {design.likesCount || 0} likes
+                                                            </p>
+                                                            <p className="text-xs text-gray-600 mt-1">by {design.user?.name}</p>
                                                         </div>
-                                                    )}
+                                                        {design.previewImage && (
+                                                            <div className="h-16 w-16 rounded-lg bg-zinc-800 overflow-hidden flex-shrink-0">
+                                                                <img src={design.previewImage} alt="" className="h-full w-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Action buttons */}
+                                                    <div className="flex gap-2 mt-3">
+                                                        <a
+                                                            href={`${process.env.NEXT_PUBLIC_EDITOR_URL || 'http://localhost:3000'}?designId=${design.id}&viewOnly=true`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-zinc-800 text-white rounded-lg text-sm font-medium hover:bg-zinc-700 transition"
+                                                        >
+                                                            <Eye size={16} /> View 3D
+                                                        </a>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                handleBuyDesign(design);
+                                                                setMobileView(null);
+                                                            }}
+                                                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition"
+                                                        >
+                                                            <ShoppingBag size={16} /> ₹999
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ))}
                                     </div>
@@ -754,31 +842,54 @@ export default function CommunityPage() {
                                 {/* CREATORS VIEW */}
                                 {mobileView === "creators" && (
                                     <div className="space-y-4">
+                                        {/* Period Filter */}
+                                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                            {[
+                                                { value: "today", label: "Today" },
+                                                { value: "week", label: "This Week" },
+                                                { value: "month", label: "This Month" },
+                                                { value: "alltime", label: "All Time" }
+                                            ].map((p) => (
+                                                <button
+                                                    key={p.value}
+                                                    onClick={() => setPeriod(p.value)}
+                                                    className={`px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition ${period === p.value
+                                                        ? "bg-white text-black"
+                                                        : "bg-zinc-800 text-gray-400 hover:text-white"
+                                                        }`}
+                                                >
+                                                    {p.label}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Creators List */}
                                         {data?.leaderboard?.slice(0, 10).map((user: any, index: number) => (
-                                            <div key={user.id} className="flex items-center gap-3 bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-                                                <div className="w-6 text-center text-sm font-bold text-gray-500">
+                                            <div key={user.id} className="flex items-center gap-4 bg-zinc-950 p-4 rounded-xl border border-zinc-800 hover:border-red-600/50 transition-colors">
+                                                <div className="w-8 text-center text-xl font-bold text-red-600">
                                                     {index + 1}
                                                 </div>
-                                                <Link href={`/user/${user.id}`} className="h-12 w-12 rounded-full bg-zinc-800 overflow-hidden hover:ring-2 hover:ring-red-500 transition">
+                                                <Link href={`/user/${user.id}`} className="h-14 w-14 rounded-full bg-zinc-800 overflow-hidden hover:ring-2 hover:ring-red-500 transition flex-shrink-0">
                                                     {user.image ? (
                                                         <img src={user.image} className="w-full h-full object-cover" alt="" />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center">
-                                                            <User size={20} className="text-gray-600" />
+                                                            <User size={24} className="text-gray-600" />
                                                         </div>
                                                     )}
                                                 </Link>
                                                 <Link href={`/user/${user.id}`} className="flex-1 min-w-0 hover:opacity-80 transition">
-                                                    <p className="font-bold text-sm truncate hover:underline">{user.name}</p>
-                                                    <p className="text-xs text-gray-500">{user.followersCount || 0} followers</p>
+                                                    <p className="font-bold text-base truncate hover:underline">{user.name}</p>
+                                                    <p className="text-sm text-gray-500">{user.followersCount || 0} followers</p>
+                                                    <p className="text-xs text-gray-600">{user._count?.designs || 0} designs</p>
                                                 </Link>
                                                 {userInfo && user.id !== userInfo._id && (
                                                     <button
                                                         onClick={() => followMutation.mutate(user.id)}
                                                         disabled={followMutation.isPending}
-                                                        className={`px-3 py-1 text-xs font-bold rounded-full transition disabled:opacity-50 ${user.isFollowing
+                                                        className={`px-4 py-2 text-sm font-bold rounded-full transition disabled:opacity-50 ${user.isFollowing
                                                             ? "bg-zinc-800 text-white border border-zinc-700"
-                                                            : "bg-white text-black hover:bg-gray-200"
+                                                            : "bg-red-600 text-white hover:bg-red-700"
                                                             }`}
                                                     >
                                                         {followMutation.isPending ? "..." : user.isFollowing ? "Following" : "Follow"}

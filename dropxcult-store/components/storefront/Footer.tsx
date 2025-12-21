@@ -43,6 +43,11 @@ const Footer = () => {
                         <h4 className="font-semibold mb-6">Support</h4>
                         <ul className="space-y-4 text-sm text-gray-400">
                             <li>
+                                <Link href="/track-order" className="hover:text-white transition-colors">
+                                    Track Order
+                                </Link>
+                            </li>
+                            <li>
                                 <Link href="/faq" className="hover:text-white transition-colors">
                                     FAQ
                                 </Link>
@@ -92,7 +97,9 @@ const Footer = () => {
                     </p>
                     <div className="flex gap-6">
                         <a
-                            href="#"
+                            href="https://www.instagram.com/dropxcult?igsh=bjE0ODU4cXVkNHg2"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="text-gray-400 hover:text-white transition-colors"
                             aria-label="Instagram"
                         >

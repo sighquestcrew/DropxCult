@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Loader2, ShieldCheck, Truck, CreditCard } from "lucide-react";
+import { Loader2, ShieldCheck, Truck, CreditCard, Wallet, Tag, X, Check } from "lucide-react";
 import { clearCart } from "@/redux/slices/cartSlice";
 import axios from "axios";
 import { toast } from "sonner";
@@ -55,6 +55,10 @@ export default function CheckoutPage() {
   const { items, totalPrice } = useSelector((state: RootState) => state.cart);
   const [isProcessing, setIsProcessing] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "cod">("razorpay");
+  const [couponCode, setCouponCode] = useState("");
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountAmount: number; message: string } | null>(null);
 
   // Load Razorpay script on mount
   useEffect(() => {
@@ -87,6 +91,38 @@ export default function CheckoutPage() {
     },
   });
 
+  // Calculate final price
+  const discountAmount = appliedCoupon?.discountAmount || 0;
+  const finalPrice = Math.max(0, totalPrice - discountAmount);
+
+  // Apply coupon
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponLoading(true);
+    try {
+      const { data } = await axios.post("/api/coupons/validate", {
+        code: couponCode,
+        orderTotal: totalPrice
+      });
+      setAppliedCoupon({
+        code: data.code,
+        discountAmount: data.discountAmount,
+        message: data.message
+      });
+      toast.success(data.message);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Invalid coupon");
+      setAppliedCoupon(null);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode("");
+  };
+
   // Handle Payment
   const onSubmit = async (data: ShippingFormValues) => {
     setIsProcessing(true);
@@ -105,9 +141,20 @@ export default function CheckoutPage() {
           designId: item.designId,
         })),
         shippingAddress: data,
+        paymentMethod: paymentMethod,
+        couponCode: appliedCoupon?.code || null,
+        discountAmount: discountAmount,
       });
 
       const { orderId, razorpayOrderId, amount, currency, error } = orderResponse.data;
+
+      // Handle COD orders
+      if (paymentMethod === "cod") {
+        dispatch(clearCart());
+        toast.success("Order placed successfully! Pay on delivery.");
+        router.push(`/order-success?orderId=${orderId}&cod=true`);
+        return;
+      }
 
       // Check if payment gateway is not configured (demo mode)
       if (error && error.includes("Payment gateway not configured")) {
@@ -123,7 +170,7 @@ export default function CheckoutPage() {
           <div className="space-y-2">
             <p className="font-bold">🎉 Demo Order Created!</p>
             <p className="text-sm">Order ID: {orderId || "DEMO-" + Date.now()}</p>
-            <p className="text-sm">Amount: ₹{totalPrice}</p>
+            <p className="text-sm">Amount: ₹{finalPrice}</p>
             <p className="text-xs text-gray-400 mt-2">
               Note: Razorpay keys not configured. Add keys to enable real payments.
             </p>
@@ -335,10 +382,52 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
+                {/* Payment Method Selection */}
+                <div className="pt-4 border-t border-zinc-800">
+                  <h3 className="text-sm font-bold text-gray-400 mb-3">PAYMENT METHOD</h3>
+                  <div className="space-y-3">
+                    <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${paymentMethod === 'razorpay' ? 'border-red-500 bg-red-500/10' : 'border-zinc-700 hover:border-zinc-600'
+                      }`}>
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="razorpay"
+                        checked={paymentMethod === 'razorpay'}
+                        onChange={() => setPaymentMethod('razorpay')}
+                        className="accent-red-500"
+                      />
+                      <CreditCard size={20} className="text-gray-400" />
+                      <div>
+                        <p className="font-medium">Pay Online</p>
+                        <p className="text-xs text-gray-500">Cards, UPI, Net Banking</p>
+                      </div>
+                    </label>
+                    <div className="relative opacity-50 cursor-not-allowed">
+                      <div className="flex items-center gap-3 p-3 border border-zinc-700 rounded-lg">
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value="cod"
+                          disabled
+                          className="accent-red-500"
+                        />
+                        <Wallet size={20} className="text-gray-500" />
+                        <div>
+                          <p className="font-medium text-gray-400">Cash on Delivery</p>
+                          <p className="text-xs text-gray-600">Pay when you receive</p>
+                        </div>
+                      </div>
+                      <span className="absolute top-1/2 right-3 -translate-y-1/2 text-xs bg-yellow-600/30 text-yellow-400 px-2 py-1 rounded font-bold">
+                        COMING SOON
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isProcessing || !scriptLoaded}
+                  disabled={isProcessing || (paymentMethod === 'razorpay' && !scriptLoaded)}
                   className="w-full bg-red-600 text-white font-bold h-14 mt-6 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isProcessing ? (
@@ -346,10 +435,15 @@ export default function CheckoutPage() {
                       <Loader2 className="animate-spin" size={20} />
                       Processing...
                     </>
+                  ) : paymentMethod === 'cod' ? (
+                    <>
+                      <Wallet size={20} />
+                      PLACE ORDER (₹{finalPrice})
+                    </>
                   ) : (
                     <>
                       <CreditCard size={20} />
-                      PAY ₹{totalPrice}
+                      PAY ₹{finalPrice}
                     </>
                   )}
                 </button>
@@ -357,7 +451,7 @@ export default function CheckoutPage() {
                 {/* Security Badge */}
                 <div className="flex items-center justify-center gap-2 text-gray-500 text-sm mt-4">
                   <ShieldCheck size={16} />
-                  <span>Secured by Razorpay</span>
+                  <span>{paymentMethod === 'cod' ? 'Secure Checkout' : 'Secured by Razorpay'}</span>
                 </div>
               </form>
             </div>
@@ -396,19 +490,60 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
+              {/* Coupon Code */}
+              <div className="mb-4 pb-4 border-b border-zinc-700">
+                <label className="text-sm text-gray-400 mb-2 block">Coupon Code</label>
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <Check size={16} className="text-green-500" />
+                      <span className="font-mono font-bold text-green-400">{appliedCoupon.code}</span>
+                      <span className="text-sm text-gray-400">(-₹{appliedCoupon.discountAmount})</span>
+                    </div>
+                    <button onClick={removeCoupon} className="text-gray-400 hover:text-white">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      placeholder="Enter code"
+                      className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={applyCoupon}
+                      disabled={couponLoading || !couponCode.trim()}
+                      className="bg-zinc-700 hover:bg-zinc-600 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                    >
+                      {couponLoading ? <Loader2 size={16} className="animate-spin" /> : 'Apply'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Totals */}
               <div className="space-y-2 border-t border-zinc-700 pt-4">
                 <div className="flex justify-between text-gray-400">
                   <span>Subtotal</span>
                   <span>₹{totalPrice}</span>
                 </div>
+                {appliedCoupon && (
+                  <div className="flex justify-between text-green-400">
+                    <span>Discount</span>
+                    <span>-₹{appliedCoupon.discountAmount}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-gray-400">
                   <span>Shipping</span>
                   <span className="text-green-500">FREE</span>
                 </div>
                 <div className="flex justify-between text-xl font-bold pt-2 border-t border-zinc-700">
                   <span>TOTAL</span>
-                  <span className="text-red-500">₹{totalPrice}</span>
+                  <span className="text-red-500">₹{finalPrice}</span>
                 </div>
               </div>
 

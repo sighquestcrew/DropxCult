@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
         const entity = searchParams.get("entity");
         const userId = searchParams.get("userId");
         const status = searchParams.get("status");
+        const role = searchParams.get("role");
         const search = searchParams.get("search");
         const startDate = searchParams.get("startDate");
         const endDate = searchParams.get("endDate");
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
         if (entity) where.entity = entity;
         if (userId) where.userId = userId;
         if (status) where.status = status;
+        if (role) where.userRole = role;
 
         if (search) {
             where.OR = [

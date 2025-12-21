@@ -30,6 +30,11 @@ model User {
   royaltyPoints   Int      @default(0)
   royaltyEarnings Int      @default(0)
   
+  // Referral Program
+  referralCode    String?   @unique
+  referredById    String?
+  referralCredits Float     @default(0)
+  
   // Social / Follow counts
   followersCount  Int      @default(0)
   followingCount  Int      @default(0)
@@ -40,13 +45,21 @@ model User {
   orders          Order[]
   customRequests  CustomRequest[]
   likedRequests   CustomRequest[] @relation("UserLikes")
-  designs         Design[]
+  designers        Design[]
+  preorders       Preorder[]
+  reviews         Review[]
+  addresses       Address[]
+  preOrderEntries PreOrderEntry[]
   
   // Community relations
   designLikes     DesignLike[]
   designComments  DesignComment[]
   followers       Follow[] @relation("Followers")
   following       Follow[] @relation("Following")
+  
+  // Referrals
+  referralsMade   Referral[] @relation("ReferrerRelation")
+  referredBy      Referral?  @relation("RefereeRelation")
 }
 
 model Product {
@@ -65,7 +78,11 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  orderItems  OrderItem[]
+  orderItems      OrderItem[]
+  preorders       Preorder[]
+  reviews         Review[]
+  campaigns       PreOrderCampaign[]
+  preOrderItems   PreOrderEntryItem[]
 }
 
 model Order {
@@ -277,3 +294,188 @@ model Inquiry {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model Preorder {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  size      String
+  quantity  Int      @default(1)
+  notes     String?
+  status    String   @default("Pending") // Pending, Notified, Cancelled, Completed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Coupon {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  discountType   String    @default("percentage") // percentage or fixed
+  discountValue  Float     // e.g., 10 for 10% or 100 for ₹100 off
+  minOrderAmount Float     @default(0)
+  maxUses        Int?      // null = unlimited
+  usedCount      Int       @default(0)
+  isActive       Boolean   @default(true)
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Review {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id])
+  rating         Int      // 1-5 stars
+  title          String?
+  comment        String
+  images         String[] // Review photos
+  isVerified     Boolean  @default(false) // Verified purchase
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, productId]) // One review per user per product
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  fullName    String
+  phone       String
+  address     String
+  city        String
+  state       String
+  postalCode  String
+  country     String   @default("India")
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ==========================================
+// PRE-ORDER CAMPAIGN SYSTEM
+// ==========================================
+
+model PreOrderCampaign {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  
+  name            String
+  description     String?
+  
+  // Timing
+  startDate       DateTime
+  endDate         DateTime
+  
+  // Quantity constraints
+  minQuantity     Int      @default(50)
+  maxQuantity     Int?     // null = unlimited
+  
+  // Delivery
+  deliveryDays    Int      @default(25)  // Days after campaign close
+  
+  // Status
+  status          String   @default("draft") // draft, active, closed, cancelled, fulfilled
+  
+  // Results (updated when campaign closes)
+  totalOrders     Int      @default(0)
+  totalQuantity   Int      @default(0)
+  totalRevenue    Float    @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  preOrders       PreOrderEntry[]
+}
+
+model PreOrderEntry {
+  id              String   @id @default(cuid())
+  orderNumber     String   @unique  // DXC-PO-12345
+  
+  campaignId      String
+  campaign        PreOrderCampaign @relation(fields: [campaignId], references: [id])
+  
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  // Items
+  items           PreOrderEntryItem[]
+  
+  // Totals
+  subtotal        Float
+  discount        Float    @default(0)
+  totalAmount     Float
+  
+  // Payment
+  paymentId       String?   // Razorpay payment ID
+  paymentStatus   String    @default("pending") // pending, paid, refunded, failed
+  paidAt          DateTime?
+  refundId        String?
+  refundedAt      DateTime?
+  refundReason    String?
+  
+  // Shipping
+  shippingAddress Json
+  trackingNumber  String?
+  courier         String?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  
+  // Status
+  status          String   @default("pending")
+  // pending -> confirmed -> in_production -> quality_check -> ready_to_ship -> shipped -> delivered
+  // pending -> refunded (if min not met or cancelled)
+  
+  statusHistory   Json     @default("[]")  // [{status, timestamp, note}]
+  
+  // Customer opted-in for notifications
+  notifyEmail     Boolean  @default(true)
+  notifyWhatsapp  Boolean  @default(false)
+  phone           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PreOrderEntryItem {
+  id              String   @id @default(cuid())
+  preOrderId      String
+  preOrder        PreOrderEntry @relation(fields: [preOrderId], references: [id])
+  
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  
+  size            String
+  quantity        Int
+  price           Float    // Price at time of order
+  
+  createdAt       DateTime @default(now())
+}
+
+// Referral Program
+model Referral {
+  id           String   @id @default(cuid())
+  
+  referrerId   String
+  referrer     User     @relation("ReferrerRelation", fields: [referrerId], references: [id])
+  
+  refereeId    String   @unique
+  referee      User     @relation("RefereeRelation", fields: [refereeId], references: [id])
+  
+  rewardAmount Float    @default(100) // ₹100 each
+  status       String   @default("pending") // pending, credited
+  
+  createdAt    DateTime @default(now())
+  creditedAt   DateTime?
+}
+
+
+
+
+

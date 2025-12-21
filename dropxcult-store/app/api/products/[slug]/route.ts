@@ -33,7 +33,7 @@ export async function GET(
         price: 1299,
         category: "Custom Design",
         images: design.previewImage ? [design.previewImage] : [],
-        sizes: ["S", "M", "L", "XL"],
+        sizes: ["S", "M", "L", "XL", "XXL"],
         stock: 99,
         isFeatured: false,
         createdAt: design.createdAt,

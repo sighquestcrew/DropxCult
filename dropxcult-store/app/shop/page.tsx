@@ -6,6 +6,8 @@ import { Loader2, Search, ChevronDown, Grid2X2, Grid3x3, LayoutGrid, Filter, X }
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useMemo } from "react";
+import WishlistButton from "@/components/WishlistButton";
+import { getProductThumbnail } from "@/lib/cloudinary";
 
 interface Product {
   id: string;
@@ -267,12 +269,20 @@ export default function ShopPage() {
                       {/* Image */}
                       <div className="aspect-square relative overflow-hidden bg-zinc-800">
                         <Image
-                          src={product.images[0]}
+                          src={getProductThumbnail(product.images[0])}
                           alt={product.name}
                           fill
+                          loading="lazy"
                           className="object-cover group-hover:scale-105 transition-transform duration-500"
-                          unoptimized
                         />
+                        {/* Wishlist Button */}
+                        <div className="absolute top-2 right-2 z-10">
+                          <WishlistButton
+                            product={product}
+                            className="w-8 h-8 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center"
+                            size={16}
+                          />
+                        </div>
                       </div>
 
                       {/* Details */}

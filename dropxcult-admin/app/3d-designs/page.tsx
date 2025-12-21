@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Loader2, Check, X, DollarSign, Eye, Search } from "lucide-react";
+import { Loader2, Check, X, DollarSign, Eye, Search, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
@@ -78,10 +78,12 @@ function Admin3DDesignsContent() {
     const filteredDesigns = designs?.filter((design: any) => {
         // Status filter
         if (statusFilter !== "all" && design.status !== statusFilter) return false;
-        // Search filter
+        // Search filter - includes ID, name, and email
         if (!searchQuery.trim()) return true;
-        return design.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            design.user?.email?.toLowerCase().includes(searchQuery.toLowerCase());
+        const query = searchQuery.toLowerCase();
+        return design.id?.toLowerCase().includes(query) ||
+            design.name?.toLowerCase().includes(query) ||
+            design.user?.email?.toLowerCase().includes(query);
     }) || [];
 
     // Status filter options
@@ -231,11 +233,31 @@ function Admin3DDesignsContent() {
                                 </div>
 
                                 {/* Design Details */}
-                                <div className="text-sm text-gray-400 mb-4 grid grid-cols-2 gap-2">
-                                    <p>Type: <span className="text-white">{selectedDesign.tshirtType}</span></p>
-                                    <p>Color: <span className="text-white">{selectedDesign.tshirtColor}</span></p>
-                                    <p>Created: <span className="text-white">{new Date(selectedDesign.createdAt).toLocaleDateString()}</span></p>
-                                    <p>User: <span className="text-white">{selectedDesign.user?.name}</span></p>
+                                <div className="text-sm text-gray-400 mb-4 space-y-2">
+                                    {/* Design ID with copy */}
+                                    <div className="bg-zinc-950 p-3 rounded border border-zinc-800">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div>
+                                                <p className="text-xs text-gray-500 mb-1">Design ID</p>
+                                                <p className="font-mono text-xs text-green-400 break-all">{selectedDesign.id}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(selectedDesign.id);
+                                                    toast.success("Design ID copied!");
+                                                }}
+                                                className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-gray-400 hover:text-white transition flex-shrink-0"
+                                            >
+                                                <Copy size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <p>Type: <span className="text-white">{selectedDesign.tshirtType}</span></p>
+                                        <p>Color: <span className="text-white">{selectedDesign.tshirtColor}</span></p>
+                                        <p>Created: <span className="text-white">{new Date(selectedDesign.createdAt).toLocaleDateString()}</span></p>
+                                        <p>User: <span className="text-white">{selectedDesign.user?.name}</span></p>
+                                    </div>
                                 </div>
 
                                 {/* View in 3D Button */}
@@ -365,11 +387,31 @@ function Admin3DDesignsContent() {
                         </div>
 
                         {/* Design Details */}
-                        <div className="text-sm text-gray-400 mb-4 grid grid-cols-2 gap-2 bg-zinc-900 p-3 rounded">
-                            <p>Type: <span className="text-white">{selectedDesign.tshirtType}</span></p>
-                            <p>Color: <span className="text-white">{selectedDesign.tshirtColor}</span></p>
-                            <p>Created: <span className="text-white">{new Date(selectedDesign.createdAt).toLocaleDateString()}</span></p>
-                            <p>User: <span className="text-white truncate">{selectedDesign.user?.name}</span></p>
+                        <div className="text-sm text-gray-400 mb-4 space-y-2">
+                            {/* Design ID with copy */}
+                            <div className="bg-zinc-900 p-3 rounded border border-zinc-700">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div>
+                                        <p className="text-xs text-gray-500 mb-1">Design ID</p>
+                                        <p className="font-mono text-xs text-green-400 break-all">{selectedDesign.id}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(selectedDesign.id);
+                                            toast.success("Design ID copied!");
+                                        }}
+                                        className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-gray-400 hover:text-white transition flex-shrink-0"
+                                    >
+                                        <Copy size={14} />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 bg-zinc-900 p-3 rounded">
+                                <p>Type: <span className="text-white">{selectedDesign.tshirtType}</span></p>
+                                <p>Color: <span className="text-white">{selectedDesign.tshirtColor}</span></p>
+                                <p>Created: <span className="text-white">{new Date(selectedDesign.createdAt).toLocaleDateString()}</span></p>
+                                <p>User: <span className="text-white truncate">{selectedDesign.user?.name}</span></p>
+                            </div>
                         </div>
 
                         {/* View in 3D Button */}

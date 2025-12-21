@@ -208,26 +208,76 @@ export default function Home() {
                                         value={tshirtType}
                                         onChange={(e) => dispatch(setTshirtType(e.target.value as 'regular' | 'oversized' | 'hoodie' | 'sweatshirt'))}
                                     >
-                                        <option value="regular" className="bg-zinc-900">Regular Fit T-Shirt</option>
                                         <option value="oversized" className="bg-zinc-900">Oversized T-Shirt</option>
                                         <option value="hoodie" className="bg-zinc-900">Hoodie</option>
-                                        <option value="sweatshirt" className="bg-zinc-900">Sweatshirt</option>
                                     </select>
                                 </div>
 
-                                {/* Color Picker */}
+                                {/* Color Picker - Predefined colors based on product type */}
                                 <div className="space-y-2">
                                     <label className="text-xs font-medium text-white/60 uppercase tracking-wider">Product Color</label>
-                                    <div className="relative">
-                                        <input
-                                            type="color"
-                                            value={tshirtColor}
-                                            onChange={(e) => dispatch(setTshirtColor(e.target.value))}
-                                            className="w-full h-12 rounded-xl border border-white/10 cursor-pointer bg-transparent"
-                                            style={{ padding: '2px' }}
-                                        />
-                                        <div className="absolute inset-0 rounded-xl pointer-events-none border border-white/20"></div>
+                                    <div className="grid grid-cols-6 gap-2">
+                                        {(tshirtType === 'hoodie' ? [
+                                            { name: 'White', hex: '#FFFFFF' },
+                                            { name: 'Navy', hex: '#000080' },
+                                            { name: 'Army Green', hex: '#4B5320' },
+                                            { name: 'Off-white', hex: '#FAF9F6' },
+                                            { name: 'Maroon', hex: '#800000' },
+                                            { name: 'Grey', hex: '#808080' },
+                                            { name: 'Red', hex: '#FF0000' },
+                                        ] : [
+                                            // Oversized T-shirt colors
+                                            { name: 'Black', hex: '#000000' },
+                                            { name: 'White', hex: '#FFFFFF' },
+                                            { name: 'Red', hex: '#FF0000' },
+                                            { name: 'Maroon', hex: '#800000' },
+                                            { name: 'Off-white', hex: '#FAF9F6' },
+                                            { name: 'Beige', hex: '#F5F5DC' },
+                                            { name: 'Lavender', hex: '#E6E6FA' },
+                                            { name: 'Brown', hex: '#8B4513' },
+                                            { name: 'Rose', hex: '#FF007F' },
+                                            { name: 'Pink', hex: '#FFC0CB' },
+                                            { name: 'Charcoal', hex: '#36454F' },
+                                            { name: 'Army Green', hex: '#4B5320' },
+                                            { name: 'Powder Blue', hex: '#B0E0E6' },
+                                        ]).map((color) => (
+                                            <button
+                                                key={color.hex}
+                                                title={color.name}
+                                                onClick={() => dispatch(setTshirtColor(color.hex))}
+                                                className={`w-8 h-8 rounded-lg border-2 transition-all hover:scale-110 ${tshirtColor.toUpperCase() === color.hex.toUpperCase()
+                                                    ? 'border-purple-500 ring-2 ring-purple-500/50 scale-110'
+                                                    : 'border-white/20 hover:border-white/40'
+                                                    }`}
+                                                style={{ backgroundColor: color.hex }}
+                                            />
+                                        ))}
                                     </div>
+                                    <p className="text-[10px] text-white/40 mt-1">Selected: {
+                                        (tshirtType === 'hoodie' ? [
+                                            { name: 'White', hex: '#FFFFFF' },
+                                            { name: 'Navy', hex: '#000080' },
+                                            { name: 'Army Green', hex: '#4B5320' },
+                                            { name: 'Off-white', hex: '#FAF9F6' },
+                                            { name: 'Maroon', hex: '#800000' },
+                                            { name: 'Grey', hex: '#808080' },
+                                            { name: 'Red', hex: '#FF0000' },
+                                        ] : [
+                                            { name: 'Black', hex: '#000000' },
+                                            { name: 'White', hex: '#FFFFFF' },
+                                            { name: 'Red', hex: '#FF0000' },
+                                            { name: 'Maroon', hex: '#800000' },
+                                            { name: 'Off-white', hex: '#FAF9F6' },
+                                            { name: 'Beige', hex: '#F5F5DC' },
+                                            { name: 'Lavender', hex: '#E6E6FA' },
+                                            { name: 'Brown', hex: '#8B4513' },
+                                            { name: 'Rose', hex: '#FF007F' },
+                                            { name: 'Pink', hex: '#FFC0CB' },
+                                            { name: 'Charcoal', hex: '#36454F' },
+                                            { name: 'Army Green', hex: '#4B5320' },
+                                            { name: 'Powder Blue', hex: '#B0E0E6' },
+                                        ]).find(c => c.hex.toUpperCase() === tshirtColor.toUpperCase())?.name || tshirtColor
+                                    }</p>
                                 </div>
 
                                 {/* Model Scale */}

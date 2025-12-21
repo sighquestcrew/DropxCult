@@ -28,6 +28,7 @@
     "react-hook-form": "^7.67.0",
     "react-redux": "^9.2.0",
     "recharts": "^3.5.1",
+    "resend": "^6.6.0",
     "slugify": "^1.6.6",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0"

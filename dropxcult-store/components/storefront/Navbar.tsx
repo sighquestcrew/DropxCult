@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/redux/store";
 import { logout } from "@/redux/slices/authSlice";
-import { ShoppingBag, User, LogOut, PenTool, Flame, UserCircle, Menu, X } from "lucide-react";
+import { ShoppingBag, User, LogOut, PenTool, Flame, UserCircle, Menu, X, Heart } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
 import { setHasAppNavigation } from "@/redux/slices/uiSlice";
+import SearchBar from "@/components/SearchBar";
 
 export default function Navbar() {
   const dispatch = useDispatch();
@@ -81,6 +82,11 @@ export default function Navbar() {
           </Link>
         </div>
 
+        {/* Search Bar - Hidden on mobile */}
+        <div className="hidden md:block">
+          <SearchBar />
+        </div>
+
         {/* Right Side Icons */}
         <div className="flex items-center space-x-4 md:space-x-6">
 
@@ -113,6 +119,13 @@ export default function Navbar() {
                     onClick={() => setIsProfileOpen(false)}
                   >
                     <UserCircle size={16} /> My Profile
+                  </Link>
+                  <Link
+                    href="/referrals"
+                    className="block px-4 py-2 text-sm text-gray-300 hover:bg-zinc-800 hover:text-green-400 flex items-center gap-2"
+                    onClick={() => setIsProfileOpen(false)}
+                  >
+                    <Flame size={16} /> Refer & Earn ₹100
                   </Link>
                   {userInfo.isAdmin && (
                     <Link
@@ -147,6 +160,11 @@ export default function Navbar() {
               </Link>
             )
           )}
+
+          {/* Wishlist Icon */}
+          <Link href="/wishlist" className="relative group" aria-label="View wishlist">
+            <Heart className="h-6 w-6 text-gray-300 group-hover:text-red-500 transition-colors" />
+          </Link>
 
           {/* Cart Icon */}
           <Link href="/cart" className="relative group" aria-label="View shopping cart">

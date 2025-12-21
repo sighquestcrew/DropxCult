@@ -10,30 +10,65 @@ import { addToCart } from "@/redux/slices/cartSlice";
 import { toast } from "sonner";
 import { Loader2, Minus, Plus, ShoppingBag, ChevronLeft, ChevronRight, Eye, Ruler, Star, Truck, RotateCcw, ChevronDown, User, X } from "lucide-react";
 import Link from "next/link";
+import WishlistButton from "@/components/WishlistButton";
+import { addToRecentlyViewed } from "@/lib/recently-viewed";
+import ReviewSection from "@/components/ReviewSection";
+import PreOrderBanner from "@/components/PreOrderBanner";
 
-// Size Chart Data
-const SIZE_CHART = {
-  headers: ["Size", "Chest (in)", "Length (in)", "Shoulder (in)"],
-  rows: [
-    ["S", "38", "27", "17"],
-    ["M", "40", "28", "18"],
-    ["L", "42", "29", "19"],
-    ["XL", "44", "30", "20"],
-  ],
-  recommendations: [
-    { height: "5'4\" - 5'7\"", weight: "50-60kg", size: "S" },
-    { height: "5'7\" - 5'10\"", weight: "60-70kg", size: "M" },
-    { height: "5'10\" - 6'0\"", weight: "70-80kg", size: "L" },
-    { height: "6'0\"+", weight: "80kg+", size: "XL" },
-  ]
+// Size Charts - Different charts for different product types
+const SIZE_CHARTS = {
+  // Drop-shoulder T-Shirts (180gsm, 210gsm, 240gsm, AcidWash OS)
+  tshirt: {
+    title: "Oversized T-Shirt Size Chart",
+    headers: ["Size", "Chest (in)", "Length (in)", "Shoulder (in)", "Sleeve (in)"],
+    rows: [
+      ["S", "42", "27.5", "20", "8.5"],
+      ["M", "44", "28", "21", "9"],
+      ["L", "46", "28.5", "22", "9.5"],
+      ["XL", "48", "29", "23", "10"],
+      ["XXL", "50", "29.5", "24", "10.5"],
+    ],
+    recommendations: [
+      { height: "5'4\" - 5'6\"", weight: "50-60kg", size: "S" },
+      { height: "5'6\" - 5'9\"", weight: "60-70kg", size: "M" },
+      { height: "5'9\" - 5'11\"", weight: "70-80kg", size: "L" },
+      { height: "5'11\" - 6'1\"", weight: "80-90kg", size: "XL" },
+      { height: "6'1\"+", weight: "90kg+", size: "XXL" },
+    ],
+    note: "All measurements in inches. Expect tolerance by ± 1 inch."
+  },
+  // Hoodies/Sweatshirts
+  hoodie: {
+    title: "Hoodie/Sweatshirt Size Chart",
+    headers: ["Size", "Chest (in)", "Length (in)", "Shoulder (in)", "Sleeve (in)"],
+    rows: [
+      ["S", "38", "27", "16.5", "23.5"],
+      ["M", "40", "28", "17.5", "24"],
+      ["L", "42", "29", "18.5", "24.5"],
+      ["XL", "44", "30", "19.5", "25"],
+      ["XXL", "46", "31", "20.5", "25.5"],
+    ],
+    recommendations: [
+      { height: "5'4\" - 5'6\"", weight: "50-60kg", size: "S" },
+      { height: "5'6\" - 5'9\"", weight: "60-70kg", size: "M" },
+      { height: "5'9\" - 5'11\"", weight: "70-80kg", size: "L" },
+      { height: "5'11\" - 6'1\"", weight: "80-90kg", size: "XL" },
+      { height: "6'1\"+", weight: "90kg+", size: "XXL" },
+    ],
+    note: "All measurements in inches. Expect tolerance by ± 1 inch."
+  }
 };
 
-// Mock Reviews Data
-const MOCK_REVIEWS = [
-  { id: 1, name: "Arjun K.", rating: 5, date: "2 weeks ago", comment: "Amazing quality! The fabric is super soft and the print is perfect. Fits exactly as per the size chart.", avatar: "A" },
-  { id: 2, name: "Priya S.", rating: 5, date: "1 month ago", comment: "Love the design! Got so many compliments. Shipping was fast too.", avatar: "P" },
-  { id: 3, name: "Rahul M.", rating: 4, date: "1 month ago", comment: "Great t-shirt, slightly oversized but that's the style. Would buy again!", avatar: "R" },
-];
+// Helper to get correct size chart based on product
+const getSizeChart = (product: any) => {
+  // Check tshirtType for 3D designs
+  if (product.tshirtType === 'hoodie') return SIZE_CHARTS.hoodie;
+  // Check category for admin products
+  const category = (product.category || '').toLowerCase();
+  if (category.includes('hoodie') || category.includes('sweatshirt')) return SIZE_CHARTS.hoodie;
+  // Default to t-shirt
+  return SIZE_CHARTS.tshirt;
+};
 
 // Add JSON-LD Structured Data Helper
 function generateProductSchema(product: any) {
@@ -129,6 +164,18 @@ export default function ProductPage() {
     enabled: !!product?.category,
   });
 
+  // Fetch active pre-order campaign for this product
+  const { data: campaignData } = useQuery({
+    queryKey: ["campaign", product?.id],
+    queryFn: async () => {
+      const { data } = await axios.get(`/api/preorder-campaigns?productId=${product.id}`);
+      return data;
+    },
+    enabled: !!product?.id,
+  });
+
+  const activeCampaign = campaignData?.campaign;
+
   const handleAddToCart = () => {
     if (!selectedSize) {
       toast.error("Please select a size first!");
@@ -191,6 +238,9 @@ export default function ProductPage() {
 
       document.head.appendChild(productSchemaScript);
       document.head.appendChild(breadcrumbSchemaScript);
+
+      // Track recently viewed
+      addToRecentlyViewed(product);
     }
   }, [product]);
 
@@ -256,7 +306,14 @@ export default function ProductPage() {
             {/* Product Info */}
             <div>
               <div className="text-xs text-red-500 font-bold uppercase tracking-widest mb-2">{product.category}</div>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-3">{product.name}</h1>
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">{product.name}</h1>
+                <WishlistButton
+                  product={product}
+                  className="w-12 h-12 bg-zinc-800 hover:bg-zinc-700 rounded-full flex items-center justify-center shrink-0 border border-zinc-700"
+                  size={24}
+                />
+              </div>
 
               {/* Designer Attribution for 3D Designs */}
               {product.is3DDesign && product.designerName && (
@@ -300,6 +357,27 @@ export default function ProductPage() {
                 <Eye size={18} />
                 View in 3D
               </Link>
+            )}
+
+            {/* Pre-Order Campaign Banner */}
+            {activeCampaign && (
+              <PreOrderBanner
+                productId={product.id}
+                campaign={activeCampaign}
+                onPreOrderClick={() => {
+                  if (!selectedSize) {
+                    toast.error("Please select a size first!");
+                    return;
+                  }
+                  const userInfo = localStorage.getItem("storeUserInfo");
+                  if (!userInfo) {
+                    toast.error("Please login to pre-order");
+                    return;
+                  }
+                  // Navigate to pre-order checkout
+                  window.location.href = `/checkout/preorder?campaignId=${activeCampaign.id}&productId=${product.id}&size=${selectedSize}&qty=${qty}`;
+                }}
+              />
             )}
 
             {/* Size Selector with Chart Link */}
@@ -346,10 +424,10 @@ export default function ProductPage() {
               <button
                 onClick={handleAddToCart}
                 disabled={product.stock <= 0}
-                className={`flex-1 h-10 font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors text-xs rounded ${product.stock > 0 ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-zinc-700 text-zinc-400 cursor-not-allowed'}`}
+                className={`flex-1 h-10 font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors text-xs rounded ${product.stock > 0 ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-zinc-700 text-zinc-400 cursor-not-allowed hidden'}`}
               >
                 <ShoppingBag size={14} />
-                {product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+                Add to Cart
               </button>
             </div>
 
@@ -392,12 +470,18 @@ export default function ProductPage() {
                       <p>• Custom designs are made-to-order</p>
                       <p>• No returns or exchanges available</p>
                       <p>• Please check size chart before ordering</p>
+                      <Link href="/shipping" className="text-red-500 hover:underline inline-flex items-center gap-1 mt-2">
+                        View full policy →
+                      </Link>
                     </>
                   ) : (
                     <>
                       <p>• Hassle-free returns within 7 days</p>
                       <p>• Product must be unworn with tags</p>
                       <p>• Refund processed within 5-7 days</p>
+                      <Link href="/shipping" className="text-blue-500 hover:underline inline-flex items-center gap-1 mt-2">
+                        View full policy →
+                      </Link>
                     </>
                   )}
                 </div>
@@ -417,48 +501,24 @@ export default function ProductPage() {
               <div className="flex justify-between">
                 <span className="text-gray-500">Availability:</span>
                 {product.is3DDesign ? (
-                  <span className="text-purple-400 font-bold">Made to Order</span>
+                  <div className="text-right">
+                    <span className="text-purple-400 font-bold">Made to Order</span>
+                    <p className="text-xs text-gray-500 mt-1 max-w-[200px]">
+                      Printed after you order. Production: 3-5 days + shipping
+                    </p>
+                  </div>
                 ) : (
-                  <span className={`font-bold ${product.stock > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {product.stock > 0 ? 'In Stock' : 'Out of Stock'}
-                  </span>
+                  <div className="text-right">
+                    <span className={`font-bold ${product.stock > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {product.stock > 0 ? `In Stock (${product.stock})` : 'Out of Stock'}
+                    </span>
+                    {product.stock > 0 && product.stock <= 10 && (
+                      <p className="text-xs text-orange-400 mt-1">Only {product.stock} left - Order soon!</p>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Reviews Section */}
-        <div className="max-w-7xl mx-auto mt-16">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-bold">Customer Reviews</h2>
-            <button className="text-sm text-red-500 hover:text-red-400 border border-red-500 hover:border-red-400 px-4 py-2 rounded transition-colors">
-              Write a Review
-            </button>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {MOCK_REVIEWS.map((review) => (
-              <div key={review.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center font-bold">
-                    {review.avatar}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold">{review.name}</h4>
-                      <span className="text-xs text-gray-500">{review.date}</span>
-                    </div>
-                    <div className="flex mt-1">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star key={star} size={12} className={star <= review.rating ? "text-yellow-500 fill-yellow-500" : "text-gray-600"} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-400 leading-relaxed">{review.comment}</p>
-              </div>
-            ))}
           </div>
         </div>
 
@@ -494,7 +554,7 @@ export default function ProductPage() {
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold flex items-center gap-2">
                 <Ruler size={20} className="text-red-500" />
-                Size Chart
+                {getSizeChart(product).title}
               </h3>
               <button onClick={() => setShowSizeChart(false)} className="text-gray-400 hover:text-white">
                 <X size={24} />
@@ -506,13 +566,13 @@ export default function ProductPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-700">
-                    {SIZE_CHART.headers.map((h) => (
+                    {getSizeChart(product).headers.map((h) => (
                       <th key={h} className="py-3 px-2 text-left font-semibold text-gray-300">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {SIZE_CHART.rows.map((row, idx) => (
+                  {getSizeChart(product).rows.map((row, idx) => (
                     <tr key={idx} className="border-b border-zinc-800 hover:bg-zinc-800/50">
                       {row.map((cell, cellIdx) => (
                         <td key={cellIdx} className={`py-3 px-2 ${cellIdx === 0 ? 'font-bold text-white' : 'text-gray-400'}`}>{cell}</td>
@@ -527,15 +587,23 @@ export default function ProductPage() {
             <div>
               <h4 className="font-semibold mb-3 text-gray-300">Size Recommendations</h4>
               <div className="space-y-2">
-                {SIZE_CHART.recommendations.map((rec, idx) => (
+                {getSizeChart(product).recommendations.map((rec, idx) => (
                   <div key={idx} className="flex items-center justify-between bg-zinc-800/50 rounded px-4 py-2 text-sm">
                     <span className="text-gray-400">{rec.height}, {rec.weight}</span>
                     <span className="font-bold text-white bg-red-600 px-3 py-1 rounded">{rec.size}</span>
                   </div>
                 ))}
               </div>
+              <p className="text-xs text-gray-500 mt-4 text-center">{getSizeChart(product).note}</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Reviews Section */}
+      {product && (
+        <div className="max-w-6xl mx-auto px-4 pb-12">
+          <ReviewSection productId={product.id} />
         </div>
       )}
     </div>

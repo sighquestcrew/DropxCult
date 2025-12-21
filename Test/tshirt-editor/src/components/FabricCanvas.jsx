@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import JSZip from "jszip";
 import { getUserFromUrl, getUserFromSession, saveUserToSession } from "@/lib/auth";
 import { removeBackground } from "@imgly/background-removal";
+import { useToast } from "@/components/ui/toast";
 
 export default function FabricCanvas({ onUpdate, tshirtColor = "#ffffff", backgroundImage = "/designs/Template.png", tshirtType = "regular", onLoad, onGetSnapshot }) {
     const canvasRef = useRef(null);
@@ -37,6 +38,7 @@ export default function FabricCanvas({ onUpdate, tshirtColor = "#ffffff", backgr
     const [isRemovingBg, setIsRemovingBg] = useState(false); // Background removal loading state
 
     const isInitialized = useRef(false);
+    const toast = useToast();
 
     // Initialize user auth on mount
     // Initialize user auth and load design on mount
@@ -404,7 +406,7 @@ export default function FabricCanvas({ onUpdate, tshirtColor = "#ffffff", backgr
     const removeImageBg = async () => {
         const activeObject = fabricRef.current?.getActiveObject();
         if (!activeObject || activeObject.type !== 'image') {
-            alert('Please select an image first');
+            toast.warning('Please select an image first');
             return;
         }
 
@@ -468,7 +470,7 @@ export default function FabricCanvas({ onUpdate, tshirtColor = "#ffffff", backgr
             img.src = dataUrl; // Use base64 data URL instead of blob URL
         } catch (error) {
             console.error('Background removal failed:', error);
-            alert('Failed to remove background. Please try again.');
+            toast.error('Failed to remove background. Please try again.');
             setIsRemovingBg(false);
         }
     };
@@ -543,7 +545,7 @@ export default function FabricCanvas({ onUpdate, tshirtColor = "#ffffff", backgr
     // Cloud Save Functions
     const initiateSave = () => {
         if (!currentUser) {
-            alert("Please login from dropxcult-store to save designs to your account");
+            toast.warning("Please login from dropxcult-store to save designs to your account");
             return;
         }
 
@@ -635,10 +637,10 @@ export default function FabricCanvas({ onUpdate, tshirtColor = "#ffffff", backgr
 
             const savedDesign = await response.json();
             setCurrentDesignId(savedDesign.id);
-            alert("Design saved to your account!");
+            toast.success("Design saved to your account!");
         } catch (error) {
             console.error('Failed to save design:', error);
-            alert("Failed to save design. Please try again.");
+            toast.error("Failed to save design. Please try again.");
         } finally {
             setIsSaving(false);
         }
@@ -654,7 +656,7 @@ export default function FabricCanvas({ onUpdate, tshirtColor = "#ffffff", backgr
                 const writable = await fileHandle.createWritable();
                 await writable.write(blob);
                 await writable.close();
-                alert("Project saved successfully!");
+                toast.success("Project saved successfully!");
             } else {
                 throw new Error("No file handle");
             }
@@ -689,7 +691,7 @@ export default function FabricCanvas({ onUpdate, tshirtColor = "#ffffff", backgr
                 const writable = await handle.createWritable();
                 await writable.write(blob);
                 await writable.close();
-                alert("Project saved successfully!");
+                toast.success("Project saved successfully!");
             } else {
                 throw new Error("API not supported");
             }
@@ -811,7 +813,7 @@ export default function FabricCanvas({ onUpdate, tshirtColor = "#ffffff", backgr
             }
         } catch (error) {
             console.error("Error loading design:", error);
-            alert("Failed to load design from server.");
+            toast.error("Failed to load design from server.");
         }
     };
 
@@ -926,7 +928,7 @@ export default function FabricCanvas({ onUpdate, tshirtColor = "#ffffff", backgr
             }
         } catch (error) {
             console.error("Failed to load project:", error);
-            alert("Failed to load project file");
+            toast.error("Failed to load project file");
         }
     };
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { logAudit } from "@/lib/audit";
+import { sendDesignStatusEmail } from "@/lib/email";
 
 const getUser = (req: Request) => {
     const authHeader = req.headers.get("authorization");
@@ -54,10 +55,26 @@ export async function POST(
                 return NextResponse.json({ error: "Invalid action" }, { status: 400 });
         }
 
-        await prisma.design.update({
+        const design = await prisma.design.update({
             where: { id },
-            data: updateData
+            data: updateData,
+            include: {
+                user: {
+                    select: { name: true, email: true }
+                }
+            }
         });
+
+        // Send email notification for accept/reject
+        if ((action === "accept" || action === "reject") && design.user?.email) {
+            await sendDesignStatusEmail({
+                designName: design.name,
+                designerName: design.user.name || 'Designer',
+                designerEmail: design.user.email,
+                status: action === "accept" ? "Accepted" : "Rejected",
+                message: reason || undefined,
+            });
+        }
 
         // Audit log: Admin design action
         const auditAction = action === "accept" ? "APPROVE" : action === "reject" ? "REJECT" : "STATUS_CHANGE";
@@ -77,3 +94,4 @@ export async function POST(
         return NextResponse.json({ error: "Server Error" }, { status: 500 });
     }
 }
+

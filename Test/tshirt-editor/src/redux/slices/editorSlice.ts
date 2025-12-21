@@ -8,7 +8,7 @@ interface EditorState {
 }
 
 const initialState: EditorState = {
-    tshirtType: 'regular',
+    tshirtType: 'oversized',
     tshirtColor: '#ffffff',
     canvasJson: null,
     isDirty: false,

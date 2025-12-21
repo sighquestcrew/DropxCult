@@ -56,10 +56,13 @@ export async function GET(req: NextRequest) {
             take: 5,
         });
 
-        // Search designs (3D designs)
+        // Search designs (3D designs) - by name OR ID
         const designs = await prisma.design.findMany({
             where: {
-                name: { contains: query, mode: "insensitive" },
+                OR: [
+                    { name: { contains: query, mode: "insensitive" } },
+                    { id: { contains: query, mode: "insensitive" } },
+                ],
             },
             select: {
                 id: true,

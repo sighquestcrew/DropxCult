@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import prisma from "@/lib/prisma";
+import { sendOrderConfirmation } from "@/lib/email";
 
 export async function POST(req: Request) {
     try {
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
 
         if (isAuthentic) {
             // Update order status in database
-            await prisma.order.update({
+            const order = await prisma.order.update({
                 where: { id: orderId },
                 data: {
                     isPaid: true,
@@ -43,7 +44,33 @@ export async function POST(req: Request) {
                         razorpay_signature,
                     },
                 },
+                include: {
+                    orderItems: true,
+                    user: true,
+                }
             });
+
+            // Send order confirmation email
+            if (order.user?.email) {
+                const shippingAddr = order.shippingAddress as any;
+                const address = shippingAddr
+                    ? `${shippingAddr.fullName || ''}, ${shippingAddr.address || ''}, ${shippingAddr.city || ''}, ${shippingAddr.state || ''} - ${shippingAddr.postalCode || ''}`
+                    : 'Address not available';
+
+                await sendOrderConfirmation({
+                    orderId: order.id,
+                    customerName: order.user.name || 'Customer',
+                    customerEmail: order.user.email,
+                    items: order.orderItems.map((item: any) => ({
+                        name: item.name,
+                        size: item.size || 'N/A',
+                        qty: item.qty,
+                        price: item.price,
+                    })),
+                    total: order.totalPrice,
+                    address,
+                });
+            }
 
             return NextResponse.json({
                 success: true,
@@ -77,3 +104,4 @@ export async function POST(req: Request) {
         );
     }
 }
+

@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import { useState } from "react";
 import { Provider } from "react-redux";
 import { store } from "@/redux/store";
+import AuthGuard from "./AuthGuard";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
     const [queryClient] = useState(() => new QueryClient());
@@ -12,9 +13,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     return (
         <Provider store={store}>
             <QueryClientProvider client={queryClient}>
-                {children}
+                <AuthGuard>
+                    {children}
+                </AuthGuard>
                 <Toaster position="top-right" richColors />
             </QueryClientProvider>
         </Provider>
     );
 }
+

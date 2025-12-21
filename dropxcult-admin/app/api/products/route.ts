@@ -96,7 +96,7 @@ export async function POST(req: Request) {
         price: Number(price),
         category,
         images: imageArray,
-        sizes: ["S", "M", "L", "XL"],
+        sizes: ["S", "M", "L", "XL", "XXL"],
         stock: 50,
         isFeatured: false,
       }

@@ -144,6 +144,11 @@ export async function GET() {
       newUsersThisMonth,
       recentOrdersCount: currentOrdersCount,
       recentRevenue: currentRevenue,
+
+      // Inventory Alerts
+      lowStockCount: await prisma.product.count({ where: { stock: { gt: 0, lte: 5 } } }),
+      outOfStockCount: await prisma.product.count({ where: { stock: 0 } }),
+      pendingPreorders: await prisma.preorder.count({ where: { status: "Pending" } }),
     });
   } catch (error) {
     console.error("Stats error:", error);

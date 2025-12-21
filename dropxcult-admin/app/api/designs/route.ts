@@ -19,7 +19,11 @@ export async function GET(req: Request) {
         const user = getUser(req);
         if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        const where = user.isAdmin ? {} : { userId: user._id };
+        // For admin: show all non-draft designs
+        // For users: show their own designs (including drafts)
+        const where = user.isAdmin
+            ? { status: { not: "Draft" } }  // Hide drafts from admin
+            : { userId: user._id };
 
         const designs = await prisma.design.findMany({
             where,

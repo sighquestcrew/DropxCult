@@ -48,7 +48,7 @@ export async function GET(req: Request) {
       price: 999, // Fixed price for all custom designs
       category: "Custom Design",
       images: design.previewImage ? [design.previewImage] : [],
-      sizes: ["S", "M", "L", "XL"],
+      sizes: ["S", "M", "L", "XL", "XXL"],
       stock: 99,
       isFeatured: false,
       createdAt: design.createdAt,
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
         price: Number(price),
         category: category || "General",
         images: [image], // We store it as an array
-        sizes: ["S", "M", "L", "XL"], // Default sizes
+        sizes: ["S", "M", "L", "XL", "XXL"], // Default sizes
         stock: 50, // Default stock
         isFeatured: false,
       }
