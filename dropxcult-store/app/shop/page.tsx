@@ -16,6 +16,7 @@ interface Product {
   price: number;
   images: string[];
   category: string;
+  garmentType: string;
 }
 
 export default function ShopPage() {

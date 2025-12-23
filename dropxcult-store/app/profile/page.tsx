@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Loader2, Package, Palette, Wallet, Edit3, Trash2, Users, Heart, Crown, MapPin, Calendar, Link as LinkIcon, Settings, LogOut, ShoppingBag, Award, TrendingUp, Eye, MessageCircle, Share2, Camera, Upload, Sparkles } from "lucide-react";
+import { Loader2, Package, Palette, Wallet, Edit3, Trash2, Users, Heart, Crown, MapPin, Calendar, Link as LinkIcon, Settings, LogOut, ShoppingBag, Award, TrendingUp, Eye, MessageCircle, Share2, Camera, Upload, Sparkles, CheckCircle, XCircle } from "lucide-react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/redux/store";
 import { useRouter } from "next/navigation";
@@ -133,10 +133,6 @@ export default function ProfilePage() {
     onError: () => toast.error("Failed to publish design"),
   });
 
-  // ... (inside the design card render loop)
-
-
-
   const handleWithdraw = () => {
     if (profile?.royaltyPoints < 500) {
       toast.error("Minimum withdrawal is 500 Points");
@@ -150,11 +146,7 @@ export default function ProfilePage() {
     router.push("/");
   };
 
-  if (isLoading || !profile) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <Loader2 className="animate-spin text-red-600" size={32} />
-    </div>
-  );
+
 
   const getRankColor = (rank: string) => {
     switch (rank) {
@@ -176,63 +168,158 @@ export default function ProfilePage() {
     }
   };
 
+  // Extract Public ID from Cloudinary URL
+  const getPublicIdFromUrl = (url: string) => {
+    if (!url) return null;
+    try {
+      // Example: .../upload/v12345/folder/filename.jpg -> folder/filename
+      const parts = url.split('/');
+      const filename = parts.pop()?.split('.')[0];
+      const folder = parts.pop();
+      if (filename && folder && folder !== 'upload') { // Check if folder is part of public_id (not 'upload' or version)
+        // Simple heuristic: if folder is 'dropxcult-products' or similar, include it
+        const versionIndex = url.indexOf('/upload/');
+        if (versionIndex !== -1) {
+          const afterUpload = url.substring(versionIndex + 8); // Skip /upload/
+          const afterVersion = afterUpload.indexOf('/') !== -1 ? afterUpload.substring(afterUpload.indexOf('/') + 1) : afterUpload;
+          const pid = afterVersion.substring(0, afterVersion.lastIndexOf('.'));
+          return pid;
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [savingBanner, setSavingBanner] = useState(false);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBannerSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBannerFile(file);
+    setBannerPreview(URL.createObjectURL(file)); // Local preview only
+    e.target.value = ""; // Reset input
+  };
+
+  const handleBannerCancel = () => {
+    if (bannerPreview) URL.revokeObjectURL(bannerPreview);
+    setBannerFile(null);
+    setBannerPreview(null);
+  };
+
+  const handleBannerSave = async () => {
+    if (!bannerFile) return;
+    setSavingBanner(true);
+    try {
+      // 1. Upload New Banner
+      const formData = new FormData();
+      formData.append('file', bannerFile);
+
+      const { data: uploadData } = await axios.post('/api/upload', formData, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+
+      // 2. Update Profile
+      await axios.put('/api/user/profile', { banner: uploadData.url }, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+
+      // 3. Delete OLD Banner (Cleanup)
+      const oldBannerUrl = profile.banner;
+      if (oldBannerUrl) {
+        const publicId = getPublicIdFromUrl(oldBannerUrl);
+        if (publicId) {
+          await axios.delete('/api/upload', {
+            data: { public_id: publicId },
+            headers: { Authorization: `Bearer ${userInfo?.token}` }
+          });
+        }
+      }
+
+      toast.success('Banner updated!');
+      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      handleBannerCancel(); // Reset local state
+    } catch (error) {
+      toast.error('Failed to update banner');
+    } finally {
+      setSavingBanner(false);
+    }
+  };
+
+  if (isLoading || !profile) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <Loader2 className="animate-spin text-red-600" size={32} />
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-black text-white">
       <div className="max-w-4xl mx-auto">
 
         {/* Cover/Banner - Editable */}
-        <div className="h-32 sm:h-48 relative group cursor-pointer" onClick={() => document.getElementById('bannerFileInput')?.click()}>
-          {profile?.banner ? (
-            <img src={profile.banner} alt="Banner" className="w-full h-full object-cover" />
+        <div className="h-32 sm:h-48 relative group"> {/* Removed onClick handler from parent */}
+
+          {/* Main Display Image */}
+          {(bannerPreview || profile?.banner) ? (
+            <img src={bannerPreview || profile.banner} alt="Banner" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full bg-gradient-to-r from-red-900/50 via-purple-900/30 to-zinc-900">
               <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
             </div>
           )}
-          {/* Overlay on hover */}
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-            <div className="flex items-center gap-2 text-white">
-              <Camera size={24} />
-              <span className="font-medium">Change Banner</span>
-            </div>
+
+          {/* Action Overlay - Always visible if new banner selected, else on hover */}
+          <div className={`absolute inset-0 bg-black/50 transition-opacity flex items-center justify-center ${bannerFile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+
+            {/* If NO file selected: Show "Change Banner" */}
+            {!bannerFile && (
+              <button
+                onClick={() => bannerInputRef.current?.click()}
+                className="flex items-center gap-2 text-white bg-black/50 px-4 py-2 rounded-full hover:bg-black/70 transition"
+              >
+                <Camera size={24} />
+                <span className="font-medium">Change Banner</span>
+              </button>
+            )}
+
+            {/* If File Selected: Show Save/Cancel */}
+            {bannerFile && (
+              <div className="flex gap-3">
+                <button
+                  onClick={handleBannerSave}
+                  disabled={savingBanner}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold flex items-center gap-2"
+                >
+                  {savingBanner ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
+                  Save
+                </button>
+                <button
+                  onClick={handleBannerCancel}
+                  disabled={savingBanner}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-bold flex items-center gap-2"
+                >
+                  <XCircle size={16} />
+                  Cancel
+                </button>
+              </div>
+            )}
+
           </div>
+
           {/* Hidden file input */}
           <input
+            ref={bannerInputRef}
             type="file"
-            id="bannerFileInput"
             accept="image/*"
             className="hidden"
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-
-              try {
-                const formData = new FormData();
-                formData.append('file', file);
-
-                toast.loading('Uploading banner...');
-                const { data } = await axios.post('/api/upload', formData, {
-                  headers: {
-                    'Content-Type': 'multipart/form-data',
-                    Authorization: `Bearer ${userInfo?.token}`
-                  }
-                });
-
-                // Update profile with new banner
-                await axios.put('/api/user/profile', { banner: data.url }, {
-                  headers: { Authorization: `Bearer ${userInfo?.token}` }
-                });
-
-                toast.dismiss();
-                toast.success('Banner updated!');
-                queryClient.invalidateQueries({ queryKey: ["user-profile"] });
-              } catch (error) {
-                toast.dismiss();
-                toast.error('Failed to upload banner');
-              }
-            }}
+            onChange={handleBannerSelect}
           />
         </div>
+
 
         {/* Profile Header */}
         <div className="relative px-4 pb-4 border-b border-zinc-800">
@@ -377,15 +464,53 @@ export default function ProfilePage() {
                 <h2 className="text-lg font-bold">Edit Profile</h2>
                 <button onClick={() => setIsEditing(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
               </div>
-              <form onSubmit={(e) => {
+              <form onSubmit={async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
-                const data = Object.fromEntries(formData);
+                const data: any = Object.fromEntries(formData);
                 if ((data.password as string) !== (data.confirmPassword as string)) {
                   toast.error("Passwords do not match");
                   return;
                 }
-                updateMutation.mutate(data);
+
+                try {
+                  // Check if new image selected
+                  const fileInput = fileInputRef.current;
+                  let newImageUrl = null;
+
+                  if (fileInput && fileInput.files && fileInput.files[0]) {
+                    // Upload NOW
+                    const uploadFormData = new FormData();
+                    uploadFormData.append('file', fileInput.files[0]);
+
+                    toast.loading('Uploading image...');
+                    const { data: uploadData } = await axios.post('/api/upload', uploadFormData, {
+                      headers: { Authorization: `Bearer ${userInfo?.token}` }
+                    });
+                    newImageUrl = uploadData.url;
+                    data.image = newImageUrl; // Add to update payload
+                    toast.dismiss();
+                  }
+
+                  // Update Profile
+                  await updateMutation.mutateAsync(data);
+
+                  // Cleanup Old Image
+                  if (newImageUrl && profile.image) {
+                    const publicId = getPublicIdFromUrl(profile.image);
+                    if (publicId) {
+                      axios.delete('/api/upload', {
+                        data: { public_id: publicId },
+                        headers: { Authorization: `Bearer ${userInfo?.token}` }
+                      }).catch(err => console.error("Cleanup failed", err));
+                    }
+                  }
+
+                } catch (err) {
+                  toast.dismiss();
+                  console.error(err);
+                  toast.error("Profile update failed");
+                }
               }} className="p-4 space-y-4">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Name</label>
@@ -399,7 +524,7 @@ export default function ProfilePage() {
                   <label className="block text-xs text-gray-500 mb-1">Bio</label>
                   <textarea name="bio" defaultValue={profile.bio} className="w-full bg-black border border-zinc-700 p-3 rounded-lg text-white focus:border-blue-500 focus:outline-none" rows={3} />
                 </div>
-                {/* Profile Image Upload */}
+                {/* Profile Image Upload (Deferred) */}
                 <div>
                   <label className="block text-xs text-gray-500 mb-2">Profile Image</label>
                   <div className="flex items-center gap-4">
@@ -413,54 +538,53 @@ export default function ProfilePage() {
                           </div>
                         )}
                       </div>
-                      {uploadingImage && (
-                        <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
-                          <Loader2 size={20} className="animate-spin text-white" />
-                        </div>
-                      )}
                     </div>
                     <div className="flex-1 space-y-2">
+                      <p className="text-xs text-gray-400">
+                        {imagePreview && imagePreview.startsWith('blob:') ? "Image selected. Save to apply." : "Current profile image."}
+                      </p>
+
+                      {/* Hidden Input */}
                       <input
                         ref={fileInputRef}
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={async (e) => {
+                        name="profileImageFile" // Not used directly by form data, handled manually
+                        onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
 
-                          // Preview
-                          const reader = new FileReader();
-                          reader.onload = (e) => setImagePreview(e.target?.result as string);
-                          reader.readAsDataURL(file);
-
-                          // Upload
-                          setUploadingImage(true);
-                          try {
-                            const formData = new FormData();
-                            formData.append('file', file);
-                            const { data } = await axios.post('/api/upload', formData, {
-                              headers: { Authorization: `Bearer ${userInfo?.token}` }
-                            });
-                            setImagePreview(data.url);
-                            toast.success('Image uploaded!');
-                          } catch (err) {
-                            toast.error('Upload failed');
-                            setImagePreview(null);
-                          } finally {
-                            setUploadingImage(false);
-                          }
+                          // Local Preview Only
+                          if (imagePreview && imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+                          setImagePreview(URL.createObjectURL(file));
+                          // Store file in a way we can access on submit (e.g. state or ref, or just re-access input)
                         }}
                       />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploadingImage}
-                        className="w-full py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-white text-sm rounded-lg border border-zinc-700 flex items-center justify-center gap-2 transition disabled:opacity-50"
-                      >
-                        <Upload size={16} />
-                        {uploadingImage ? 'Uploading...' : 'Choose Image'}
-                      </button>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex-1 py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-white text-sm rounded-lg border border-zinc-700 flex items-center justify-center gap-2 transition"
+                        >
+                          <Upload size={16} /> Choose New
+                        </button>
+                        {imagePreview && imagePreview.startsWith('blob:') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              URL.revokeObjectURL(imagePreview);
+                              setImagePreview(null);
+                              if (fileInputRef.current) fileInputRef.current.value = "";
+                            }}
+                            className="py-2 px-3 bg-red-900/30 hover:bg-red-900/50 text-red-500 text-sm rounded-lg border border-red-900/50 flex items-center justify-center transition"
+                            title="Cancel selection"
+                          >
+                            <XCircle size={16} />
+                          </button>
+                        )}
+                      </div>
                       <p className="text-[10px] text-gray-500">JPG, PNG, GIF, WebP. Max 5MB</p>
                     </div>
                   </div>

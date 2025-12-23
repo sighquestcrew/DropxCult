@@ -170,6 +170,7 @@ export async function GET(req: Request) {
         previewImage: d.previewImage,
         tshirtType: d.tshirtType,
         tshirtColor: d.tshirtColor,
+        garmentType: d.garmentType,
         likesCount: d.likesCount,
         commentsCount: d.commentsCount,
         sharesCount: d.sharesCount,

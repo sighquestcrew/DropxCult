@@ -14,18 +14,24 @@ const getUser = (req: Request) => {
     }
 };
 
-// GET: Fetch reviews for a product
+// GET: Fetch reviews for a product or design
 export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
         const productId = searchParams.get("productId");
+        const designId = searchParams.get("designId");
 
-        if (!productId) {
-            return NextResponse.json({ error: "Product ID required" }, { status: 400 });
+        if (!productId && !designId) {
+            return NextResponse.json({ error: "Product or Design ID required" }, { status: 400 });
         }
 
+        // Build where clause based on what's provided
+        const whereClause = productId
+            ? { productId }
+            : { designId };
+
         const reviews = await prisma.review.findMany({
-            where: { productId },
+            where: whereClause,
             include: {
                 user: {
                     select: { id: true, name: true, image: true }
@@ -68,50 +74,57 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Please login to review" }, { status: 401 });
         }
 
-        const { productId, rating, title, comment, images } = await req.json();
+        const { productId, designId, rating, title, comment, images } = await req.json();
 
-        if (!productId || !rating || !comment) {
-            return NextResponse.json({ error: "Product, rating, and comment are required" }, { status: 400 });
+        if (!productId && !designId) {
+            return NextResponse.json({ error: "Product or Design ID required" }, { status: 400 });
+        }
+
+        if (!rating || !comment) {
+            return NextResponse.json({ error: "Rating and comment are required" }, { status: 400 });
         }
 
         if (rating < 1 || rating > 5) {
             return NextResponse.json({ error: "Rating must be between 1 and 5" }, { status: 400 });
         }
 
-        // Check if user already reviewed this product
-        const existingReview = await prisma.review.findUnique({
+        // Check if user already reviewed this item
+        const existingReview = await prisma.review.findFirst({
             where: {
-                userId_productId: {
-                    userId: user._id,
-                    productId
-                }
+                userId: user._id,
+                ...(productId ? { productId } : { designId })
             }
         });
 
         if (existingReview) {
-            return NextResponse.json({ error: "You have already reviewed this product" }, { status: 400 });
+            return NextResponse.json({ error: "You have already reviewed this item" }, { status: 400 });
         }
 
         // Check if user has purchased this product (for verified badge)
-        const hasPurchased = await prisma.orderItem.findFirst({
-            where: {
-                productId,
-                order: {
-                    userId: user._id,
-                    isPaid: true
+        let hasPurchased = false;
+        if (productId) {
+            const purchase = await prisma.orderItem.findFirst({
+                where: {
+                    productId,
+                    order: {
+                        userId: user._id,
+                        isPaid: true
+                    }
                 }
-            }
-        });
+            });
+            hasPurchased = !!purchase;
+        }
 
         const review = await prisma.review.create({
             data: {
                 userId: user._id,
-                productId,
+                productId: productId || null,
+                designId: designId || null,
                 rating,
                 title: title || null,
                 comment,
                 images: images || [],
-                isVerified: !!hasPurchased
+                isVerified: hasPurchased
             },
             include: {
                 user: {
@@ -131,3 +144,4 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Failed to submit review" }, { status: 500 });
     }
 }
+

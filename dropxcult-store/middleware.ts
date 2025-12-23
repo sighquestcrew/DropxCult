@@ -5,7 +5,10 @@ const rateLimitMap = new Map();
 
 export function middleware(request: NextRequest) {
     const response = NextResponse.next();
-    const ip = request.ip || '127.0.0.1';
+    // Get IP from headers (works in Vercel/Edge), fallback for local dev
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ||
+        request.headers.get('x-real-ip') ||
+        '127.0.0.1';
 
     // 🛑 Rate Limiting (Basic In-Memory)
     // Only apply to /api routes

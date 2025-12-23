@@ -9,6 +9,24 @@ export async function GET(
 ) {
     try {
         const { id: designId } = await params;
+        const { searchParams } = new URL(req.url);
+        const sort = searchParams.get("sort") || "top"; // 'top' or 'newest'
+
+        // Get userId from auth header if available
+        let userId: string | null = null;
+        const authHeader = req.headers.get("authorization");
+        if (authHeader?.startsWith("Bearer ")) {
+            try {
+                const token = authHeader.split(" ")[1];
+                const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET!) as { _id: string };
+                userId = decoded._id;
+            } catch { }
+        }
+
+        // Build order by clause
+        const orderBy = sort === "newest"
+            ? { createdAt: "desc" as const }
+            : [{ likesCount: "desc" as const }, { createdAt: "desc" as const }];
 
         // Only fetch top-level comments (no parentId), with their replies nested
         const comments = await prisma.designComment.findMany({
@@ -16,7 +34,7 @@ export async function GET(
                 designId,
                 parentId: null  // Only top-level comments
             },
-            orderBy: { createdAt: "desc" },
+            orderBy,
             include: {
                 user: {
                     select: {
@@ -26,6 +44,10 @@ export async function GET(
                         rank: true
                     }
                 },
+                likes: userId ? {
+                    where: { userId },
+                    select: { id: true }
+                } : false,
                 replies: {
                     orderBy: { createdAt: "asc" },
                     include: {
@@ -36,13 +58,27 @@ export async function GET(
                                 image: true,
                                 rank: true
                             }
-                        }
+                        },
+                        likes: userId ? {
+                            where: { userId },
+                            select: { id: true }
+                        } : false
                     }
                 }
             }
         });
 
-        return NextResponse.json(comments);
+        // Transform to include likedByUser flags
+        const transformedComments = comments.map(comment => ({
+            ...comment,
+            likedByUser: Array.isArray(comment.likes) && comment.likes.length > 0,
+            replies: comment.replies.map(reply => ({
+                ...reply,
+                likedByUser: Array.isArray((reply as any).likes) && (reply as any).likes.length > 0
+            }))
+        }));
+
+        return NextResponse.json(transformedComments);
     } catch (error) {
         return NextResponse.json({ error: "Failed to fetch comments" }, { status: 500 });
     }

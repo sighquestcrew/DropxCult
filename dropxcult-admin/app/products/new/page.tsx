@@ -13,7 +13,8 @@ import slugify from "slugify";
 export default function NewProductPage() {
     const router = useRouter();
     const [uploading, setUploading] = useState(false);
-    const [imageUrls, setImageUrls] = useState<string[]>([]);
+    // Store local files and their preview URLs
+    const [selectedImages, setSelectedImages] = useState<{ file: File; previewUrl: string }[]>([]);
 
     const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm();
 
@@ -21,51 +22,71 @@ export default function NewProductPage() {
     const nameValue = watch("name");
     const generatedSlug = nameValue ? slugify(nameValue, { lower: true, strict: true }) : "";
 
-    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // 1. Handle Selection (Local Preview Only)
+    const handleImageSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
 
-        setUploading(true);
+        const newImages = Array.from(files).map(file => ({
+            file,
+            previewUrl: URL.createObjectURL(file)
+        }));
 
-        try {
-            // Upload each file
-            for (const file of Array.from(files)) {
-                const formData = new FormData();
-                formData.append("file", file);
-                const { data } = await axios.post("/api/upload", formData);
-                setImageUrls(prev => [...prev, data.url]);
-            }
-            toast.success(`${files.length} image(s) uploaded!`);
-        } catch (error) {
-            toast.error("Image upload failed");
-        } finally {
-            setUploading(false);
-            // Reset input
-            e.target.value = "";
-        }
+        setSelectedImages(prev => [...prev, ...newImages]);
+        e.target.value = ""; // Reset input to allow selecting same file again
     };
 
+    // 2. Remove Image (Local State Only)
     const removeImage = (index: number) => {
-        setImageUrls(prev => prev.filter((_, i) => i !== index));
+        setSelectedImages(prev => {
+            const newImages = [...prev];
+            // Revoke URL to prevent memory leaks
+            URL.revokeObjectURL(newImages[index].previewUrl);
+            newImages.splice(index, 1);
+            return newImages;
+        });
     };
 
     const onSubmit = async (data: any) => {
         try {
-            if (imageUrls.length === 0) {
-                toast.error("Please upload at least one image");
+            if (selectedImages.length === 0) {
+                toast.error("Please select at least one image");
                 return;
             }
 
+            setUploading(true);
+            const uploadedUrls: string[] = [];
+
+            // 3. Sequential Upload during Submission
+            // We upload one by one to ensure order is preserved
+            for (const img of selectedImages) {
+                const formData = new FormData();
+                formData.append("file", img.file);
+
+                try {
+                    const { data: uploadData } = await axios.post("/api/upload", formData);
+                    uploadedUrls.push(uploadData.url);
+                } catch (err) {
+                    console.error("Failed to upload image:", img.file.name);
+                    toast.error(`Failed to upload ${img.file.name}`);
+                    setUploading(false);
+                    return; // Stop process if upload fails
+                }
+            }
+
+            // 4. Create Product with final URLs
             await axios.post("/api/products", {
                 ...data,
                 slug: generatedSlug,
-                images: imageUrls, // Send all images
+                images: uploadedUrls,
             });
 
             toast.success("Product Created Successfully");
             router.push("/products");
         } catch (error) {
+            console.error(error);
             toast.error("Failed to create product");
+            setUploading(false);
         }
     };
 
@@ -112,7 +133,7 @@ export default function NewProductPage() {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-gray-400 mb-1">Category</label>
+                        <label className="block text-sm font-bold text-gray-400 mb-1">Collection</label>
                         <select
                             {...register("category", { required: true })}
                             className="w-full bg-black border border-zinc-700 p-3 rounded text-white focus:border-red-600 outline-none"
@@ -121,6 +142,32 @@ export default function NewProductPage() {
                             <option value="Mythical Beasts">Mythical Beasts</option>
                             <option value="Limited Edition">Limited Edition</option>
                         </select>
+                    </div>
+                </div>
+
+                {/* Garment Type */}
+                <div>
+                    <label className="block text-sm font-bold text-gray-400 mb-1">Garment Type</label>
+                    <div className="grid grid-cols-2 gap-4">
+                        <label className="flex items-center space-x-3 border border-zinc-700 p-4 rounded cursor-pointer hover:bg-zinc-800 transition">
+                            <input
+                                {...register("garmentType", { required: true })}
+                                type="radio"
+                                value="T-Shirt"
+                                defaultChecked
+                                className="w-5 h-5 text-red-600"
+                            />
+                            <span className="font-medium text-white">Oversized T-Shirt</span>
+                        </label>
+                        <label className="flex items-center space-x-3 border border-zinc-700 p-4 rounded cursor-pointer hover:bg-zinc-800 transition">
+                            <input
+                                {...register("garmentType", { required: true })}
+                                type="radio"
+                                value="Hoodie"
+                                className="w-5 h-5 text-red-600"
+                            />
+                            <span className="font-medium text-white">Hoodie / Sweatshirt</span>
+                        </label>
                     </div>
                 </div>
 
@@ -138,15 +185,15 @@ export default function NewProductPage() {
                 {/* Multiple Image Upload */}
                 <div>
                     <label className="block text-sm font-bold text-gray-400 mb-2">
-                        Product Images ({imageUrls.length} uploaded)
+                        Product Images ({selectedImages.length} selected)
                     </label>
 
                     {/* Image Preview Grid */}
-                    {imageUrls.length > 0 && (
+                    {selectedImages.length > 0 && (
                         <div className="grid grid-cols-4 gap-3 mb-4">
-                            {imageUrls.map((url, index) => (
+                            {selectedImages.map((img, index) => (
                                 <div key={index} className="relative aspect-square rounded overflow-hidden border border-zinc-700 group">
-                                    <Image src={url} alt={`Preview ${index + 1}`} fill className="object-cover" unoptimized />
+                                    <Image src={img.previewUrl} alt={`Preview ${index + 1}`} fill className="object-cover" unoptimized />
                                     <button
                                         type="button"
                                         onClick={() => removeImage(index)}
@@ -165,17 +212,17 @@ export default function NewProductPage() {
                     )}
 
                     <label className="cursor-pointer bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded flex items-center gap-2 transition border border-zinc-700 w-fit">
-                        {uploading ? <Loader2 className="animate-spin" /> : <UploadCloud />}
-                        {uploading ? "Uploading..." : "Add Images"}
+                        <UploadCloud />
+                        Add Images
                         <input
                             type="file"
-                            onChange={handleImageUpload}
+                            onChange={handleImageSelection}
                             className="hidden"
                             accept="image/*"
                             multiple // Allow multiple files
                         />
                     </label>
-                    <p className="text-xs text-gray-500 mt-2">First image will be used as the main product image</p>
+                    <p className="text-xs text-gray-500 mt-2">First image will be used as the main product image. Uploads happen on launch.</p>
                 </div>
 
                 <button
@@ -183,7 +230,14 @@ export default function NewProductPage() {
                     disabled={isSubmitting || uploading}
                     className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-12 mt-4 uppercase tracking-widest transition-colors flex items-center justify-center rounded"
                 >
-                    {isSubmitting ? <Loader2 className="animate-spin" /> : "LAUNCH DROP"}
+                    {uploading ? (
+                        <>
+                            <Loader2 className="animate-spin mr-2" />
+                            UPLOADING & LAUNCHING...
+                        </>
+                    ) : (
+                        "LAUNCH DROP"
+                    )}
                 </button>
             </form>
         </div>

@@ -611,11 +611,15 @@ export default function FabricCanvas({ onUpdate, tshirtColor = "#ffffff", backgr
 
             const finalName = nameOverride || projectName || 'Untitled Design';
 
+            // Map tshirtType to garmentType for size chart display
+            const garmentType = (tshirtType === 'hoodie' || tshirtType === 'sweatshirt') ? 'Hoodie' : 'T-Shirt';
+
             const designData = {
                 userId: currentUser.id,
                 name: finalName,
                 tshirtType: tshirtType,
                 tshirtColor: tshirtColor,
+                garmentType: garmentType, // For size chart in wishlist
                 canvasState: json,
                 previewImage: previewImage
             };

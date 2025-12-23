@@ -80,7 +80,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const { name, price, description, category, images, slug } = body;
+    const { name, price, description, category, garmentType, images, slug } = body;
 
     // Basic Validation - accept both 'images' array or legacy 'image' string
     const imageArray = images || (body.image ? [body.image] : []);
@@ -95,6 +95,7 @@ export async function POST(req: Request) {
         description,
         price: Number(price),
         category,
+        garmentType: garmentType || "T-Shirt",
         images: imageArray,
         sizes: ["S", "M", "L", "XL", "XXL"],
         stock: 50,

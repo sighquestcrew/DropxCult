@@ -59,7 +59,8 @@ model Product {
   slug        String   @unique
   description String
   price       Float
-  category    String
+  category    String // Collection name
+  garmentType String @default("T-Shirt") // "T-Shirt" or "Hoodie"
   images      String[]
   sizes       String[] @default(["S", "M", "L", "XL", "XXL"])
   colors      String[]
@@ -163,6 +164,7 @@ model Design {
   name            String   @default("Untitled Design")
   tshirtType      String   @default("regular") // "regular" or "oversized"
   tshirtColor     String   @default("#ffffff")
+  garmentType     String   @default("T-Shirt") // "T-Shirt" or "Hoodie"
   
   // Approval Status
   status          String   @default("Pending") // Pending, Accepted, Rejected, Royalty_Pending, Draft

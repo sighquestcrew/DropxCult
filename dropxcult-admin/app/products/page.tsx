@@ -44,8 +44,8 @@ export default function AdminProductsPage() {
             queryClient.invalidateQueries({ queryKey: ["admin-products"] });
             toast.success("Product deleted successfully");
         },
-        onError: () => {
-            toast.error("Failed to delete product");
+        onError: (error: any) => {
+            toast.error(error.response?.data?.error || "Failed to delete product");
         },
     });
 
@@ -59,8 +59,8 @@ export default function AdminProductsPage() {
             setSelectedProducts([]);
             toast.success("Products deleted successfully");
         },
-        onError: () => {
-            toast.error("Failed to delete products");
+        onError: (error: any) => {
+            toast.error(error.response?.data?.error || "Failed to delete products");
         },
     });
 
@@ -219,7 +219,7 @@ export default function AdminProductsPage() {
                                 </td>
                                 <td className="p-4">
                                     <span className={`text-sm font-bold ${product.stock > 20 ? "text-green-500" :
-                                            product.stock > 5 ? "text-yellow-500" : "text-red-500"
+                                        product.stock > 5 ? "text-yellow-500" : "text-red-500"
                                         }`}>
                                         {product.stock}
                                     </span>

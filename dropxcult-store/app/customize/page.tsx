@@ -11,9 +11,61 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { addToCart } from "../../redux/slices/cartSlice";
 
+// Size Charts - Different charts for different product types
+const SIZE_CHARTS = {
+  tshirt: {
+    title: "Regular/Oversized T-Shirt Size Chart",
+    headers: ["Size", "Chest (in)", "Length (in)", "Shoulder (in)", "Sleeve (in)"],
+    rows: [
+      ["S", "42", "27.5", "20", "8.5"],
+      ["M", "44", "28", "21", "9"],
+      ["L", "46", "28.5", "22", "9.5"],
+      ["XL", "48", "29", "23", "10"],
+      ["XXL", "50", "29.5", "24", "10.5"],
+    ],
+    recommendations: [
+      { height: "5'4\" - 5'6\"", weight: "50-60kg", size: "S" },
+      { height: "5'6\" - 5'9\"", weight: "60-70kg", size: "M" },
+      { height: "5'9\" - 5'11\"", weight: "70-80kg", size: "L" },
+      { height: "5'11\" - 6'1\"", weight: "80-90kg", size: "XL" },
+      { height: "6'1\"+", weight: "90kg+", size: "XXL" },
+    ],
+    note: "All measurements in inches. Expect tolerance by ± 1 inch."
+  },
+  hoodie: {
+    title: "Hoodie/Sweatshirt Size Chart",
+    headers: ["Size", "Chest (in)", "Length (in)", "Shoulder (in)", "Sleeve (in)"],
+    rows: [
+      ["S", "38", "27", "16.5", "23.5"],
+      ["M", "40", "28", "17.5", "24"],
+      ["L", "42", "29", "18.5", "24.5"],
+      ["XL", "44", "30", "19.5", "25"],
+      ["XXL", "46", "31", "20.5", "25.5"],
+    ],
+    recommendations: [
+      { height: "5'4\" - 5'6\"", weight: "50-60kg", size: "S" },
+      { height: "5'6\" - 5'9\"", weight: "60-70kg", size: "M" },
+      { height: "5'9\" - 5'11\"", weight: "70-80kg", size: "L" },
+      { height: "5'11\" - 6'1\"", weight: "80-90kg", size: "XL" },
+      { height: "6'1\"+", weight: "90kg+", size: "XXL" },
+    ],
+    note: "All measurements in inches. Expect tolerance by ± 1 inch."
+  }
+};
+
+const getSizeChart = (design: any) => {
+  // 1. Check garmentType for 3D designs
+  if (design?.tshirtType === 'hoodie') return SIZE_CHARTS.hoodie;
+  // 2. Check garment type explicit
+  if (design?.garmentType === 'Hoodie') return SIZE_CHARTS.hoodie;
+
+  return SIZE_CHARTS.tshirt;
+};
+
 export default function CustomizeDashboard() {
   const router = useRouter();
   const [isMounted, setIsMounted] = React.useState(false);
+  const [showSizeChart, setShowSizeChart] = React.useState(false);
   const [rejectionModal, setRejectionModal] = React.useState<{ open: boolean; reason: string; name: string }>({ open: false, reason: "", name: "" });
   const [cartModal, setCartModal] = React.useState<{ open: boolean; design: any; size: string; qty: number }>({ open: false, design: null, size: "L", qty: 1 });
   const [renameModal, setRenameModal] = React.useState<{ open: boolean; designId: string; currentName: string; newName: string }>({ open: false, designId: "", currentName: "", newName: "" });
@@ -514,6 +566,59 @@ export default function CustomizeDashboard() {
         </div>
       )}
 
+      {/* Size Chart Modal */}
+      {showSizeChart && cartModal.design && (
+        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onClick={() => setShowSizeChart(false)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <HelpCircle size={20} className="text-red-500" />
+                {getSizeChart(cartModal.design).title}
+              </h3>
+              <button onClick={() => setShowSizeChart(false)} className="text-gray-400 hover:text-white">
+                <XCircle size={24} />
+              </button>
+            </div>
+
+            {/* Size Table */}
+            <div className="overflow-x-auto mb-6">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-700">
+                    {getSizeChart(cartModal.design).headers.map((h) => (
+                      <th key={h} className="py-3 px-2 text-left font-semibold text-gray-300">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {getSizeChart(cartModal.design).rows.map((row, idx) => (
+                    <tr key={idx} className="border-b border-zinc-800 hover:bg-zinc-800/50">
+                      {row.map((cell, cellIdx) => (
+                        <td key={cellIdx} className={`py-3 px-2 ${cellIdx === 0 ? 'font-bold text-white' : 'text-gray-400'}`}>{cell}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Recommendations */}
+            <div>
+              <h4 className="font-semibold mb-3 text-gray-300">Size Recommendations</h4>
+              <div className="space-y-2">
+                {getSizeChart(cartModal.design).recommendations.map((rec, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-zinc-800/50 rounded px-4 py-2 text-sm">
+                    <span className="text-gray-400">{rec.height}, {rec.weight}</span>
+                    <span className="font-bold text-white bg-red-600 px-3 py-1 rounded">{rec.size}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-4 text-center">{getSizeChart(cartModal.design).note}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cart Modal - Size/Quantity Selection */}
       {cartModal.open && cartModal.design && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setCartModal({ open: false, design: null, size: "L", qty: 1 })}>
@@ -534,9 +639,17 @@ export default function CustomizeDashboard() {
 
             {/* Size Selection */}
             <div className="mb-6">
-              <p className="text-gray-400 text-sm mb-3 uppercase tracking-wider">Select Size</p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-gray-400 text-sm uppercase tracking-wider">Select Size</p>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowSizeChart(true); }}
+                  className="text-xs text-red-500 hover:text-red-400 flex items-center gap-1 font-bold"
+                >
+                  <HelpCircle size={14} /> Size Chart
+                </button>
+              </div>
               <div className="flex gap-2">
-                {["S", "M", "L", "XL"].map((size) => (
+                {["S", "M", "L", "XL", "XXL"].map((size) => (
                   <button
                     key={size}
                     onClick={() => setCartModal({ ...cartModal, size })}

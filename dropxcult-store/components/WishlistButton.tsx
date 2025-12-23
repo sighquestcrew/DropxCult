@@ -14,6 +14,8 @@ interface WishlistButtonProps {
         images?: string[];
         slug: string;
         sizes?: string[];
+        category?: string;
+        garmentType?: string;
     };
     className?: string;
     size?: number;
@@ -48,6 +50,8 @@ export default function WishlistButton({ product, className = "", size = 20 }: W
             image,
             slug: product.slug,
             sizes: product.sizes,
+            category: product.category,
+            garmentType: product.garmentType || "T-Shirt", // Default to T-Shirt if missing
         };
 
         const added = toggleWishlist(item);

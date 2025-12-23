@@ -3,7 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Loader2, Trophy, Flame, Heart, MessageCircle, Share2, User, Crown, Users, TrendingUp, Clock, Award, Eye, ShoppingCart, Search, Sparkles, ChevronDown, Plus, X, ShoppingBag } from "lucide-react";
+import { Loader2, Trophy, Flame, Heart, MessageCircle, Share2, User, Crown, Users, TrendingUp, Clock, Award, Eye, ShoppingCart, Search, Sparkles, ChevronDown, Plus, X, ShoppingBag, Bookmark } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/redux/store";
@@ -11,6 +11,8 @@ import { addToCart } from "@/redux/slices/cartSlice";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import CommentSection from "@/components/community/CommentSection";
+import { toggleWishlist, isInWishlist, WishlistItem, getWishlist } from "@/lib/wishlist";
 
 export default function CommunityPage() {
     const { userInfo } = useSelector((state: RootState) => state.auth);
@@ -28,6 +30,38 @@ export default function CommunityPage() {
     const commentInputRef = useRef<HTMLInputElement>(null);
     const [isPeriodDropdownOpen, setIsPeriodDropdownOpen] = useState(false);
     const [mobileView, setMobileView] = useState<"search" | "trending" | "creators" | null>(null);
+    const [bookmarkedDesigns, setBookmarkedDesigns] = useState<Set<string>>(new Set());
+
+    // Load bookmarked designs from localStorage
+    useEffect(() => {
+        const wishlist = getWishlist();
+        setBookmarkedDesigns(new Set(wishlist.map(item => item.id)));
+    }, []);
+
+    // Handle bookmark toggle
+    const handleBookmark = (design: any) => {
+        const wishlistItem: WishlistItem = {
+            id: design.id,
+            name: design.name,
+            price: 999,
+            image: design.previewImage || "",
+            slug: `design-${design.id}`,
+            sizes: ["S", "M", "L", "XL", "XXL"],
+            category: design.garmentType || "T-Shirt" // Use design's garment type
+        };
+        const isAdded = toggleWishlist(wishlistItem);
+        setBookmarkedDesigns(prev => {
+            const newSet = new Set(prev);
+            if (isAdded) {
+                newSet.add(design.id);
+                toast.success("Saved to wishlist!");
+            } else {
+                newSet.delete(design.id);
+                toast.success("Removed from wishlist");
+            }
+            return newSet;
+        });
+    };
 
     // Search state
     const [searchQuery, setSearchQuery] = useState("");
@@ -299,8 +333,8 @@ export default function CommunityPage() {
                     <div className="divide-y divide-zinc-800">
                         {data?.feed?.map((design: any) => (
                             <article key={design.id} className="p-2 sm:p-4 hover:bg-zinc-900/50 transition">
-                                {/* Creator Info */}
-                                <div className="flex gap-2 sm:gap-3">
+                                {/* Creator Info Header */}
+                                <div className="flex items-center gap-2 sm:gap-3">
                                     <Link href={`/user/${design.user?.id}`} className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 p-[2px] flex-shrink-0 hover:opacity-80 transition">
                                         <div className="h-full w-full rounded-full bg-zinc-900 flex items-center justify-center overflow-hidden">
                                             {design.user?.image ? (
@@ -311,7 +345,7 @@ export default function CommunityPage() {
                                         </div>
                                     </Link>
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <Link href={`/user/${design.user?.id}`} className="font-bold truncate hover:underline">
                                                 {design.user?.name || "Unknown"}
                                             </Link>
@@ -320,84 +354,94 @@ export default function CommunityPage() {
                                             </span>
                                             <span className="text-gray-500 text-sm">· {getTimeAgo(design.createdAt)}</span>
                                         </div>
-
                                         {/* Design Name */}
                                         <p className="text-gray-100 mt-1">{design.name}</p>
-
-                                        {/* Design Image */}
-                                        {design.previewImage && (
-                                            <div className="mt-3 rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950 flex justify-center">
-                                                <img
-                                                    src={design.previewImage}
-                                                    alt={design.name}
-                                                    className="max-w-full max-h-[280px] sm:max-h-[300px] object-contain"
-                                                />
-                                            </div>
-                                        )}
-
-                                        {/* Tags */}
-                                        <div className="flex gap-2 mt-3">
-                                            {design.is3D && (
-                                                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full">3D Design</span>
-                                            )}
-                                            {design.tshirtType && (
-                                                <span className="px-2 py-0.5 bg-zinc-800 text-gray-400 text-xs rounded-full">{design.tshirtType}</span>
-                                            )}
-                                        </div>
-
-                                        {/* Actions */}
-                                        <div className="mt-4 space-y-3">
-                                            {/* Social actions */}
-                                            <div className="flex items-center gap-3 sm:gap-4">
-                                                <button
-                                                    onClick={() => design.is3D && setSelectedDesign(design)}
-                                                    className="flex items-center gap-1.5 text-gray-500 hover:text-blue-500 transition p-1.5 sm:p-2 rounded-full hover:bg-blue-500/10"
-                                                >
-                                                    <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
-                                                    <span className="text-xs sm:text-sm">{design.commentsCount || 0}</span>
-                                                </button>
-
-                                                <button
-                                                    onClick={() => design.is3D && likeMutation.mutate(design.id)}
-                                                    className={`flex items-center gap-1.5 transition p-1.5 sm:p-2 rounded-full hover:bg-red-500/10 ${likedDesigns.has(design.id) ? "text-red-500" : "text-gray-500 hover:text-red-500"
-                                                        }`}
-                                                >
-                                                    <Heart size={16} className={`sm:w-[18px] sm:h-[18px] ${likedDesigns.has(design.id) ? "fill-red-500" : ""}`} />
-                                                    <span className="text-xs sm:text-sm">{design.likesCount || 0}</span>
-                                                </button>
-
-                                                <button
-                                                    onClick={() => handleShare(design)}
-                                                    className="flex items-center gap-1.5 text-gray-500 hover:text-green-500 transition p-1.5 sm:p-2 rounded-full hover:bg-green-500/10"
-                                                >
-                                                    <Share2 size={16} className="sm:w-[18px] sm:h-[18px]" />
-                                                    <span className="text-xs sm:text-sm">{design.sharesCount || 0}</span>
-                                                </button>
-                                            </div>
-
-                                            {/* Buy/View buttons - separate row */}
-                                            {design.is3D && (
-                                                <div className="flex gap-2">
-                                                    <a
-                                                        href={`${process.env.NEXT_PUBLIC_EDITOR_URL || 'http://localhost:3000'}?designId=${design.id}&viewOnly=true`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white py-2 rounded-lg font-medium transition"
-                                                    >
-                                                        <Eye size={16} />
-                                                        <span className="text-sm">View 3D</span>
-                                                    </a>
-                                                    <button
-                                                        onClick={() => handleBuyDesign(design)}
-                                                        className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-medium transition"
-                                                    >
-                                                        <ShoppingCart size={16} />
-                                                        <span className="text-sm">₹999</span>
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
                                     </div>
+                                </div>
+
+                                {/* Design Image - Full width, centered */}
+                                {design.previewImage && (
+                                    <div className="mt-3 rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950 flex justify-center">
+                                        <img
+                                            src={design.previewImage}
+                                            alt={design.name}
+                                            className="max-w-full max-h-[280px] sm:max-h-[300px] object-contain"
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Tags - Full width */}
+                                <div className="flex gap-2 mt-3">
+                                    {design.is3D && (
+                                        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full">3D Design</span>
+                                    )}
+                                    {design.tshirtType && (
+                                        <span className="px-2 py-0.5 bg-zinc-800 text-gray-400 text-xs rounded-full">{design.tshirtType}</span>
+                                    )}
+                                </div>
+
+                                {/* Actions - Full width */}
+                                <div className="mt-4 space-y-3">
+                                    {/* Social actions */}
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3 sm:gap-4">
+                                            <button
+                                                onClick={() => design.is3D && setSelectedDesign(design)}
+                                                className="flex items-center gap-1.5 text-gray-500 hover:text-blue-500 transition p-1.5 sm:p-2 rounded-full hover:bg-blue-500/10"
+                                            >
+                                                <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                                <span className="text-xs sm:text-sm">{design.commentsCount || 0}</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => design.is3D && likeMutation.mutate(design.id)}
+                                                className={`flex items-center gap-1.5 transition p-1.5 sm:p-2 rounded-full hover:bg-red-500/10 ${likedDesigns.has(design.id) ? "text-red-500" : "text-gray-500 hover:text-red-500"
+                                                    }`}
+                                            >
+                                                <Heart size={16} className={`sm:w-[18px] sm:h-[18px] ${likedDesigns.has(design.id) ? "fill-red-500" : ""}`} />
+                                                <span className="text-xs sm:text-sm">{design.likesCount || 0}</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => handleShare(design)}
+                                                className="flex items-center gap-1.5 text-gray-500 hover:text-green-500 transition p-1.5 sm:p-2 rounded-full hover:bg-green-500/10"
+                                            >
+                                                <Share2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                                                <span className="text-xs sm:text-sm">{design.sharesCount || 0}</span>
+                                            </button>
+                                        </div>
+
+                                        {/* Bookmark Button - Right side */}
+                                        <button
+                                            onClick={() => handleBookmark(design)}
+                                            className={`flex items-center gap-1.5 transition p-1.5 sm:p-2 rounded-full hover:bg-yellow-500/10 ${bookmarkedDesigns.has(design.id) ? "text-yellow-500" : "text-gray-500 hover:text-yellow-500"
+                                                }`}
+                                        >
+                                            <Bookmark size={16} className={`sm:w-[18px] sm:h-[18px] ${bookmarkedDesigns.has(design.id) ? "fill-yellow-500" : ""}`} />
+                                        </button>
+                                    </div>
+
+                                    {/* Buy/View buttons - separate row */}
+                                    {design.is3D && (
+                                        <div className="flex gap-2">
+                                            <a
+                                                href={`${process.env.NEXT_PUBLIC_EDITOR_URL || 'http://localhost:3000'}?designId=${design.id}&viewOnly=true`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white py-2 rounded-lg font-medium transition"
+                                            >
+                                                <Eye size={16} />
+                                                <span className="text-sm">View 3D</span>
+                                            </a>
+                                            <button
+                                                onClick={() => handleBuyDesign(design)}
+                                                className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-medium transition"
+                                            >
+                                                <ShoppingCart size={16} />
+                                                <span className="text-sm">₹999</span>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </article>
                         ))}
@@ -905,112 +949,13 @@ export default function CommunityPage() {
                 )}
             </div>
 
-            {/* Comments Modal */}
-            {selectedDesign && (
-                <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50" onClick={() => setSelectedDesign(null)}>
-                    <div
-                        className="bg-zinc-900 w-full max-w-lg h-[80vh] rounded-2xl flex flex-col overflow-hidden"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-                            <h3 className="font-bold text-lg">Comments</h3>
-                            <button onClick={() => setSelectedDesign(null)} className="text-gray-400 hover:text-white text-xl">✕</button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                            {comments?.length === 0 && (
-                                <div className="text-center text-gray-500 py-8">
-                                    <MessageCircle size={48} className="mx-auto mb-4 opacity-30" />
-                                    <p>No comments yet</p>
-                                </div>
-                            )}
-                            {comments?.map((comment: any) => (
-                                <div key={comment.id} className="flex gap-3">
-                                    <div className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center text-sm font-bold">
-                                        {comment.user?.name?.charAt(0)?.toUpperCase() || "U"}
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm">
-                                            <span className="font-bold">{comment.user?.name}</span>{" "}
-                                            <span className="text-gray-300">{comment.content}</span>
-                                        </p>
-                                        <div className="flex gap-3 mt-1 text-xs text-gray-500">
-                                            <span>{getTimeAgo(comment.createdAt)}</span>
-                                            <button
-                                                onClick={() => {
-                                                    setReplyingTo({ id: comment.id, name: comment.user?.name });
-                                                    commentInputRef.current?.focus();
-                                                }}
-                                                className="hover:text-white"
-                                            >
-                                                Reply
-                                            </button>
-                                        </div>
-
-                                        {/* Nested Replies */}
-                                        {comment.replies && comment.replies.length > 0 && (
-                                            <div className="mt-2 space-y-2 pl-2 border-l border-zinc-700">
-                                                {comment.replies.map((reply: any) => (
-                                                    <div key={reply.id} className="flex gap-2">
-                                                        <div className="h-6 w-6 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold overflow-hidden">
-                                                            {reply.user?.image ? (
-                                                                <img src={reply.user.image} className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <span>{reply.user?.name?.charAt(0)?.toUpperCase()}</span>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <p className="text-xs">
-                                                                <span className="font-bold text-gray-300">{reply.user?.name}</span>{" "}
-                                                                <span className="text-gray-400">{reply.content}</span>
-                                                            </p>
-                                                            <span className="text-[10px] text-gray-600">{getTimeAgo(reply.createdAt)}</span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <button
-                                        onClick={() => commentLikeMutation.mutate(comment.id)}
-                                        className={`transition ${likedComments.has(comment.id) ? "text-red-500" : "text-gray-500 hover:text-red-500"}`}
-                                    >
-                                        <Heart size={14} className={likedComments.has(comment.id) ? "fill-red-500" : ""} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-
-                        {userInfo ? (
-                            <div className="p-4 border-t border-zinc-800 flex gap-3">
-                                <input
-                                    ref={commentInputRef}
-                                    type="text"
-                                    value={commentText}
-                                    onChange={(e) => setCommentText(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter" && commentText.trim()) {
-                                            commentMutation.mutate({ designId: selectedDesign.id, content: commentText, parentId: replyingTo?.id });
-                                        }
-                                    }}
-                                    placeholder={replyingTo ? `Replying to @${replyingTo.name}...` : "Add a comment..."}
-                                    className="flex-1 bg-zinc-800 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                />
-                                <button
-                                    onClick={() => commentMutation.mutate({ designId: selectedDesign.id, content: commentText, parentId: replyingTo?.id })}
-                                    disabled={!commentText.trim()}
-                                    className="px-4 py-2 bg-blue-500 text-white font-bold rounded-full disabled:opacity-50"
-                                >
-                                    Post
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="p-4 border-t border-zinc-800 text-center">
-                                <Link href="/login" className="text-blue-500 hover:underline">Log in</Link> to comment
-                            </div>
-                        )}
-                    </div>
-                </div>
+            {/* YouTube-Style Comments Section */}
+            {selectedDesign && selectedDesign.is3D && (
+                <CommentSection
+                    designId={selectedDesign.id}
+                    userInfo={userInfo}
+                    onClose={() => setSelectedDesign(null)}
+                />
             )}
         </div>
     );

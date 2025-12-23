@@ -61,11 +61,16 @@ const SIZE_CHARTS = {
 
 // Helper to get correct size chart based on product
 const getSizeChart = (product: any) => {
-  // Check tshirtType for 3D designs
+  // 1. Explicit Garment Type (New System)
+  if (product.garmentType === 'Hoodie') return SIZE_CHARTS.hoodie;
+
+  // 2. Check tshirtType for 3D designs
   if (product.tshirtType === 'hoodie') return SIZE_CHARTS.hoodie;
-  // Check category for admin products
+
+  // 3. Check category (Legacy fallback)
   const category = (product.category || '').toLowerCase();
   if (category.includes('hoodie') || category.includes('sweatshirt')) return SIZE_CHARTS.hoodie;
+
   // Default to t-shirt
   return SIZE_CHARTS.tshirt;
 };
@@ -305,7 +310,15 @@ export default function ProductPage() {
           <div className="flex flex-col space-y-6 lg:space-y-8">
             {/* Product Info */}
             <div>
-              <div className="text-xs text-red-500 font-bold uppercase tracking-widest mb-2">{product.category}</div>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest mb-2">
+                <span className="text-red-500">{product.category}</span>
+                {product.garmentType && (
+                  <>
+                    <span className="text-gray-600">•</span>
+                    <span className="text-gray-400">{product.garmentType}</span>
+                  </>
+                )}
+              </div>
               <div className="flex items-start justify-between gap-4 mb-3">
                 <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">{product.name}</h1>
                 <WishlistButton
@@ -603,7 +616,11 @@ export default function ProductPage() {
       {/* Reviews Section */}
       {product && (
         <div className="max-w-6xl mx-auto px-4 pb-12">
-          <ReviewSection productId={product.id} />
+          {product.slug?.startsWith('design-') ? (
+            <ReviewSection designId={product.id} />
+          ) : (
+            <ReviewSection productId={product.id} />
+          )}
         </div>
       )}
     </div>

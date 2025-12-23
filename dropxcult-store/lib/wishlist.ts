@@ -7,6 +7,8 @@ export interface WishlistItem {
     image: string;
     slug: string;
     sizes?: string[];
+    category?: string; // e.g., "T-Shirt", "Hoodie", etc.
+    garmentType?: string; // "T-Shirt" or "Hoodie"
 }
 
 const WISHLIST_KEY = "wishlist";

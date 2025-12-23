@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, name, tshirtType, tshirtColor, canvasState, previewImage } = await req.json();
+    const { userId, name, tshirtType, tshirtColor, garmentType, canvasState, previewImage } = await req.json();
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 });
@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
         name: name || 'Untitled Design',
         tshirtType,
         tshirtColor,
+        garmentType: garmentType || 'T-Shirt', // T-Shirt or Hoodie
         canvasState,
         previewImage,
       },

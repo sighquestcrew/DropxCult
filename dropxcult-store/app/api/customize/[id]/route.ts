@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { logAudit } from "@/lib/audit";
+import cloudinary, { getPublicIdFromUrl } from "@/lib/cloudinary-server";
 
 // Helper to get User ID from Token
 const getUserId = (req: Request) => {
@@ -43,6 +44,28 @@ export async function DELETE(
         });
 
         if (customReq) {
+            // 1. Cleanup Cloudinary Images
+            const imagesToDelete = [
+                customReq.frontImage,
+                customReq.backImage,
+                customReq.leftSleeveImage,
+                customReq.rightSleeveImage
+            ].filter(Boolean) as string[];
+
+            if (imagesToDelete.length > 0) {
+                try {
+                    const publicIds = imagesToDelete
+                        .map(url => getPublicIdFromUrl(url))
+                        .filter((id): id is string => !!id);
+
+                    if (publicIds.length > 0) {
+                        await cloudinary.api.delete_resources(publicIds);
+                    }
+                } catch (imgError) {
+                    console.error("Failed to delete images from Cloudinary:", imgError);
+                }
+            }
+
             // User owns this design - safe to delete
             await prisma.customRequest.delete({ where: { id } });
 
@@ -69,6 +92,18 @@ export async function DELETE(
         });
 
         if (design) {
+            // 1. Cleanup Cloudinary Images
+            if (design.previewImage) {
+                try {
+                    const publicId = getPublicIdFromUrl(design.previewImage);
+                    if (publicId) {
+                        await cloudinary.api.delete_resources([publicId]);
+                    }
+                } catch (imgError) {
+                    console.error("Failed to delete images from Cloudinary:", imgError);
+                }
+            }
+
             // User owns this design - safe to delete
             await prisma.design.delete({ where: { id } });
 

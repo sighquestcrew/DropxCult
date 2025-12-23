@@ -49,6 +49,7 @@ model Design {
   name            String   @default("Untitled Design")
   tshirtType      String   @default("regular") // "regular" or "oversized"
   tshirtColor     String   @default("#ffffff")
+  garmentType     String   @default("T-Shirt") // "T-Shirt" or "Hoodie"
   
   // Approval Status
   status          String   @default("Draft") // Draft, Pending, Accepted, Rejected, Royalty_Pending
