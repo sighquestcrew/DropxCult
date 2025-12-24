@@ -69,11 +69,23 @@ export async function GET(req: Request) {
       userWithoutPassword.designsApproved = designsApproved;
     }
 
-    // 3. Get Recent Orders
+    // 3. Get Recent Orders with items (only show PAID orders)
     const recentOrders = await prisma.order.findMany({
-      where: { userId: user.id },
+      where: {
+        userId: user.id,
+        isPaid: true  // Only show confirmed orders
+      },
       orderBy: { createdAt: 'desc' },
-      take: 5
+      take: 10,
+      include: {
+        orderItems: {
+          include: {
+            product: {
+              select: { slug: true, name: true }
+            }
+          }
+        }
+      }
     });
 
     // 4. Get User Designs (Both 2D CustomRequests and 3D Designs)

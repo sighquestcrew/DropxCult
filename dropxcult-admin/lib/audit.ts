@@ -6,10 +6,11 @@ export type AuditAction =
     | "LOGIN" | "LOGOUT" | "LOGIN_FAILED" | "REGISTER"
     | "CREATE" | "READ" | "UPDATE" | "DELETE"
     | "APPROVE" | "REJECT" | "STATUS_CHANGE"
-    | "PAYMENT" | "REFUND";
+    | "PAYMENT" | "REFUND"
+    | "RATE_LIMITED";
 
 export type AuditEntity =
-    | "User" | "Order" | "Product" | "Design" | "CustomRequest";
+    | "User" | "Order" | "Product" | "Design" | "CustomRequest" | "Security";
 
 export type AuditStatus = "SUCCESS" | "FAILURE" | "DENIED";
 

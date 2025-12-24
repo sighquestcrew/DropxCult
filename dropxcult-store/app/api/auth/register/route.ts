@@ -3,9 +3,32 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { logAudit } from "@/lib/audit";
+import { authLimiter, getClientIp, checkRateLimit } from "@/lib/redis";
 
 export async function POST(req: Request) {
   try {
+    // ✅ SECURITY: Redis Rate Limiting (5 registrations per 15 minutes)
+    const ip = getClientIp(req);
+    const { limited, headers, reset } = await checkRateLimit(authLimiter, `register:${ip}`);
+
+    if (limited) {
+      const retryAfter = Math.ceil((reset - Date.now()) / 1000);
+      return new NextResponse(
+        JSON.stringify({
+          error: "Too many registration attempts. Please try again later.",
+          retryAfter: `${retryAfter} seconds`
+        }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": retryAfter.toString(),
+            ...headers
+          }
+        }
+      );
+    }
+
     const { name, email, phone, password } = await req.json();
 
     // 1. Check if user already exists

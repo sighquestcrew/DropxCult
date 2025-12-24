@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Package, Search, Truck, CheckCircle, Clock, MapPin, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import axios from "axios";
@@ -16,33 +17,40 @@ const ORDER_STEPS = [
 ];
 
 // Map order status from DB to step index
-const getStepIndex = (status: string, isPaid: boolean, isDelivered: boolean) => {
-    if (isDelivered) return 4; // Delivered
-    if (status === "Shipped") return 3;
-    if (status === "Processing" || status === "Printing") return 2;
-    if (isPaid) return 1; // Confirmed
+const getStepIndex = (status: string, isPaid: boolean) => {
+    if (status === "Delivered") return 4; // Delivered
+    if (status === "Shipped") return 3;   // Shipped
+    if (status === "Printing" || status === "Processing") return 2; // Printing
+    if (isPaid) return 1; // Confirmed (paid)
     return 0; // Placed
 };
 
 export default function TrackOrderPage() {
+    const searchParams = useSearchParams();
     const [orderId, setOrderId] = useState("");
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
-    const handleTrack = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!orderId.trim()) {
-            toast.error("Please enter an order ID");
-            return;
+    // Auto-track if orderId is in URL
+    useEffect(() => {
+        const urlOrderId = searchParams.get("orderId");
+        if (urlOrderId) {
+            setOrderId(urlOrderId);
+            // Auto-trigger tracking
+            trackOrder(urlOrderId);
         }
+    }, [searchParams]);
+
+    const trackOrder = async (id: string) => {
+        if (!id.trim()) return;
 
         setLoading(true);
         setError("");
         setOrder(null);
 
         try {
-            const { data } = await axios.get(`/api/orders/${orderId.trim()}`);
+            const { data } = await axios.get(`/api/orders/${id.trim()}`);
             setOrder(data);
         } catch (err: any) {
             setError(err.response?.data?.error || "Order not found");
@@ -52,7 +60,16 @@ export default function TrackOrderPage() {
         }
     };
 
-    const currentStep = order ? getStepIndex(order.status || "Placed", order.isPaid, order.isDelivered) : 0;
+    const handleTrack = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!orderId.trim()) {
+            toast.error("Please enter an order ID");
+            return;
+        }
+        trackOrder(orderId);
+    };
+
+    const currentStep = order ? getStepIndex(order.status || "Placed", order.isPaid) : 0;
 
     return (
         <div className="min-h-screen bg-black text-white py-12">
@@ -140,10 +157,10 @@ export default function TrackOrderPage() {
                                             {/* Line */}
                                             <div className="flex flex-col items-center">
                                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isCompleted
-                                                        ? isCurrent
-                                                            ? 'bg-blue-600 ring-4 ring-blue-600/30'
-                                                            : 'bg-green-600'
-                                                        : 'bg-zinc-800 border border-zinc-700'
+                                                    ? isCurrent
+                                                        ? 'bg-blue-600 ring-4 ring-blue-600/30'
+                                                        : 'bg-green-600'
+                                                    : 'bg-zinc-800 border border-zinc-700'
                                                     }`}>
                                                     <Icon size={20} className={isCompleted ? 'text-white' : 'text-gray-500'} />
                                                 </div>

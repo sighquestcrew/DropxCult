@@ -125,7 +125,9 @@ model OrderItem {
   image     String
   price     Float
   size      String
+  isCustom  Boolean @default(false) // true if bought from Community, false if from Shop
   
+  designId  String? // Linked Design ID if applicable
   productId String
   product   Product @relation(fields: [productId], references: [id])
   
@@ -482,6 +484,21 @@ model Referral {
   createdAt    DateTime @default(now())
   creditedAt   DateTime?
 }
+
+// 2FA Code (Synced with Admin Project)
+model TwoFactorCode {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  code      String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+
 
 
 

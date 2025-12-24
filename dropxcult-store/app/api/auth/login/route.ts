@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { logAudit } from "@/lib/audit";
-import { authRateLimit } from "@/lib/rateLimit";
+import { authLimiter, getClientIp, checkRateLimit } from "@/lib/redis";
 
 // ✅ SECURITY FIX: Whitelist allowed origins, not "*"
 const ALLOWED_ORIGINS = [
@@ -34,9 +34,29 @@ export async function OPTIONS(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    // ✅ SECURITY FIX: Rate limiting (5 attempts per 15 minutes)
-    const rateLimitResult = await authRateLimit(req);
-    if (rateLimitResult) return rateLimitResult;
+    // ✅ SECURITY: Redis Rate Limiting (5 attempts per 15 minutes)
+    const ip = getClientIp(req);
+    const { limited, headers: rateLimitHeaders, reset } = await checkRateLimit(authLimiter, `login:${ip}`);
+
+    if (limited) {
+      const retryAfter = Math.ceil((reset - Date.now()) / 1000);
+      const origin = req.headers.get("origin");
+      return new NextResponse(
+        JSON.stringify({
+          error: "Too many login attempts. Please try again later.",
+          retryAfter: `${retryAfter} seconds`
+        }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": retryAfter.toString(),
+            ...rateLimitHeaders,
+            ...getCorsHeaders(origin)
+          }
+        }
+      );
+    }
 
     const { email, password } = await req.json();
     const origin = req.headers.get("origin");

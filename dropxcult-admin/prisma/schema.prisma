@@ -30,6 +30,11 @@ model User {
   royaltyPoints   Int      @default(0)
   royaltyEarnings Int      @default(0)
   
+  // Referral Program
+  referralCode    String?   @unique
+  referredById    String?
+  referralCredits Float     @default(0)
+  
   // Social / Follow counts
   followersCount  Int      @default(0)
   followingCount  Int      @default(0)
@@ -117,6 +122,9 @@ model OrderItem {
   price     Float
   size      String
   
+  designId  String?  // For linking to custom designs
+  isCustom  Boolean  @default(false)
+
   productId String
   product   Product @relation(fields: [productId], references: [id])
   
@@ -462,3 +470,5 @@ model TwoFactorCode {
   @@index([userId])
   @@index([expiresAt])
 }
+
+

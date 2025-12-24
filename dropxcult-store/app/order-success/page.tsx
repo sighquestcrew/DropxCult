@@ -59,7 +59,7 @@ function OrderSuccessContent() {
                 {/* Action Buttons */}
                 <div className="space-y-3">
                     <Link
-                        href="/orders"
+                        href="/profile?tab=orders"
                         className="w-full bg-red-600 text-white font-bold h-12 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                     >
                         View My Orders

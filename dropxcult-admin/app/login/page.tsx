@@ -50,10 +50,6 @@ export default function AdminLoginPage() {
 
             toast.success("Verification code sent to your email");
 
-            // In dev mode, show the code in toast
-            if (tfaData.devCode) {
-                toast.info(`Dev code: ${tfaData.devCode}`, { duration: 30000 });
-            }
 
             setStep("2fa");
         } catch (error: any) {
@@ -108,9 +104,6 @@ export default function AdminLoginPage() {
             });
             toast.success("New verification code sent");
 
-            if (tfaData.devCode) {
-                toast.info(`Dev code: ${tfaData.devCode}`, { duration: 30000 });
-            }
             setCode("");
         } catch (error: any) {
             toast.error(error.response?.data?.error || "Failed to resend code");

@@ -62,6 +62,7 @@ export function middleware(request: NextRequest) {
     response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
     // Content Security Policy
+    // We must allow Razorpay frames and scripts
     response.headers.set(
         'Content-Security-Policy',
         [
@@ -70,13 +71,17 @@ export function middleware(request: NextRequest) {
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "img-src 'self' data: https: blob:",
             "font-src 'self' data: https://fonts.gstatic.com",
-            "connect-src 'self' https://api.razorpay.com https://res.cloudinary.com",
+            // Connect src needs stricter rules but must allow Razorpay domains
+            "connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com https://*.razorpay.com https://res.cloudinary.com",
             "media-src 'self' blob:",
+            "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com", // Allow Razorpay iframes
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",
+            // Clean up frame-ancestors to avoid blocking ourselves if needed, generally 'self' is fine for main doc
             "frame-ancestors 'self'",
-            "upgrade-insecure-requests"
+            // Remove upgrade-insecure-requests for localhost dev to work without HTTPS warnings
+            // "upgrade-insecure-requests" 
         ].join('; ')
     );
 

@@ -2,10 +2,48 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-// import { logAudit } from "@/lib/audit"; // Attempting to use existing audit lib if possible, otherwise skip or mock
+import { adminAuthLimiter, getClientIp, checkRateLimit } from "@/lib/redis";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(req: Request) {
     try {
+        // ✅ SECURITY: Redis Rate Limiting (5 attempts per 15 minutes)
+        const ip = getClientIp(req);
+        const { limited, headers, reset } = await checkRateLimit(adminAuthLimiter, ip);
+
+        if (limited) {
+            const retryAfter = Math.ceil((reset - Date.now()) / 1000);
+
+            console.log("🛡️ [RATE LIMIT] Logging rate limit event for IP:", ip);
+            try {
+                await logAudit({
+                    action: "RATE_LIMITED",
+                    entity: "Security",
+                    status: "DENIED",
+                    details: { ip, reset },
+                    errorMessage: "Too many login attempts"
+                });
+                console.log("✅ [RATE LIMIT] Log saved successfully");
+            } catch (auditError) {
+                console.error("❌ [RATE LIMIT] Failed to save audit log:", auditError);
+            }
+
+            return new NextResponse(
+                JSON.stringify({
+                    error: "Too many login attempts. Please try again later.",
+                    retryAfter: `${retryAfter} seconds`
+                }),
+                {
+                    status: 429,
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Retry-After": retryAfter.toString(),
+                        ...headers
+                    }
+                }
+            );
+        }
+
         const { email, password } = await req.json();
 
         if (!email || !password) {
@@ -53,6 +91,14 @@ export async function POST(req: Request) {
                 token,
             });
         } else {
+            await logAudit({
+                action: "LOGIN_FAILED",
+                entity: "User",
+                userEmail: email,
+                status: "FAILURE",
+                errorMessage: "Invalid credentials"
+            });
+
             return NextResponse.json({
                 error: "Invalid credentials"
             }, { status: 401 });

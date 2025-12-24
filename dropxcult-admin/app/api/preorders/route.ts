@@ -1,84 +1,75 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || "fallback-secret";
-
-// Verify admin token
-const getAdmin = (req: Request) => {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
-    const token = authHeader.split(" ")[1];
-    try {
-        const user = jwt.verify(token, JWT_SECRET) as { id: string; isAdmin: boolean };
-        return user.isAdmin ? user : null;
-    } catch {
-        return null;
-    }
-};
-
-// GET: Fetch all pre-orders for admin
 export async function GET(req: Request) {
     try {
-        const admin = getAdmin(req);
-        if (!admin) {
-            return NextResponse.json({ error: "Admin only" }, { status: 403 });
-        }
-
         const { searchParams } = new URL(req.url);
-        const status = searchParams.get("status");
+        const search = searchParams.get("search") || "";
+        const page = parseInt(searchParams.get("page") || "1");
+        const limit = parseInt(searchParams.get("limit") || "20");
+        const skip = (page - 1) * limit;
 
-        const where = status && status !== "all" ? { status } : {};
+        // Build where clause
+        const where: any = {};
+        if (search) {
+            where.OR = [
+                { orderNumber: { contains: search, mode: "insensitive" } },
+                { user: { name: { contains: search, mode: "insensitive" } } },
+                { user: { email: { contains: search, mode: "insensitive" } } }
+            ];
+        }
 
-        const preorders = await prisma.preorder.findMany({
-            where,
-            include: {
-                user: {
-                    select: { id: true, name: true, email: true, phone: true }
+        // Fetch pre-orders with pagination
+        const [preOrders, totalCount] = await Promise.all([
+            prisma.preOrderEntry.findMany({
+                where,
+                include: {
+                    user: {
+                        select: {
+                            name: true,
+                            email: true
+                        }
+                    },
+                    items: {
+                        include: {
+                            product: {
+                                select: {
+                                    name: true,
+                                    images: true,
+                                    category: true,
+                                    garmentType: true
+                                }
+                            }
+                        }
+                    },
+                    campaign: {
+                        select: {
+                            name: true,
+                            endDate: true,
+                            deliveryDays: true,
+                            status: true
+                        }
+                    }
                 },
-                product: {
-                    select: { id: true, name: true, slug: true, images: true, price: true, stock: true }
-                }
-            },
-            orderBy: { createdAt: "desc" }
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit
+            }),
+            prisma.preOrderEntry.count({ where })
+        ]);
+
+        return NextResponse.json({
+            preOrders,
+            pagination: {
+                page,
+                totalPages: Math.ceil(totalCount / limit),
+                total: totalCount,
+                limit
+            }
         });
 
-        return NextResponse.json(preorders);
-
     } catch (error: any) {
-        console.error("Admin Pre-orders Error:", error);
-        return NextResponse.json({ error: "Server error" }, { status: 500 });
-    }
-}
-
-// PATCH: Update pre-order status
-export async function PATCH(req: Request) {
-    try {
-        const admin = getAdmin(req);
-        if (!admin) {
-            return NextResponse.json({ error: "Admin only" }, { status: 403 });
-        }
-
-        const { preorderId, status } = await req.json();
-
-        if (!preorderId || !status) {
-            return NextResponse.json({ error: "Preorder ID and status required" }, { status: 400 });
-        }
-
-        const validStatuses = ["Pending", "Notified", "Cancelled", "Completed"];
-        if (!validStatuses.includes(status)) {
-            return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-        }
-
-        const preorder = await prisma.preorder.update({
-            where: { id: preorderId },
-            data: { status }
-        });
-
-        return NextResponse.json({ success: true, preorder });
-
-    } catch (error: any) {
-        console.error("Update Pre-order Error:", error);
+        console.error("Admin Pre-Orders Fetch Error:", error);
         return NextResponse.json({ error: "Server error" }, { status: 500 });
     }
 }

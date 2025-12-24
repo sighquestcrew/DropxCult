@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import cloudinary from "@/lib/cloudinary-server";
 import jwt from "jsonwebtoken";
+import { uploadLimiter, getClientIp, checkRateLimit } from "@/lib/redis";
 
 // ✅ SECURITY: Allowed file types
 const ALLOWED_TYPES = [
@@ -15,6 +16,28 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function POST(req: Request) {
     try {
+        // ✅ SECURITY: Redis Rate Limiting (10 uploads per hour)
+        const ip = getClientIp(req);
+        const { limited, headers, reset } = await checkRateLimit(uploadLimiter, ip);
+
+        if (limited) {
+            const retryAfter = Math.ceil((reset - Date.now()) / 1000);
+            return new NextResponse(
+                JSON.stringify({
+                    error: "Upload limit exceeded. Please try again later.",
+                    retryAfter: `${retryAfter} seconds`
+                }),
+                {
+                    status: 429,
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Retry-After": retryAfter.toString(),
+                        ...headers
+                    }
+                }
+            );
+        }
+
         // ✅ SECURITY FIX: Require authentication
         const authHeader = req.headers.get("authorization");
         if (!authHeader || !authHeader.startsWith("Bearer ")) {

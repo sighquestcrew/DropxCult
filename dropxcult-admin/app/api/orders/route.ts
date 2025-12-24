@@ -62,6 +62,17 @@ export async function GET(req: NextRequest) {
       include: {
         user: {
           select: { name: true, email: true }
+        },
+        orderItems: {
+          include: {
+            product: {
+              select: {
+                slug: true,
+                category: true,
+                garmentType: true
+              }
+            }
+          }
         }
       },
       orderBy: { createdAt: 'desc' },

@@ -146,7 +146,7 @@ export default function PreOrderCheckoutPage() {
             }
 
             const options = {
-                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+                key: process.env.NEXT_PUBLIC_RAZORPAY_API_KEY,
                 amount: orderData.amount,
                 currency: "INR",
                 name: "DropXCult",

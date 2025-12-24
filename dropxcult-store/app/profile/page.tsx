@@ -2,10 +2,10 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Loader2, Package, Palette, Wallet, Edit3, Trash2, Users, Heart, Crown, MapPin, Calendar, Link as LinkIcon, Settings, LogOut, ShoppingBag, Award, TrendingUp, Eye, MessageCircle, Share2, Camera, Upload, Sparkles, CheckCircle, XCircle } from "lucide-react";
+import { Loader2, Package, Palette, Wallet, Edit3, Trash2, Users, Heart, Crown, MapPin, Calendar, Link as LinkIcon, Settings, LogOut, ShoppingBag, Award, TrendingUp, Eye, MessageCircle, Share2, Camera, Upload, Sparkles, CheckCircle, XCircle, Truck } from "lucide-react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/redux/store";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { setCredentials, logout } from "@/redux/slices/authSlice";
@@ -19,6 +19,15 @@ export default function ProfilePage() {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<"designs" | "orders" | "liked">("designs");
+  const searchParams = useSearchParams();
+
+  // Read tab from URL query param
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "orders" || tabParam === "liked" || tabParam === "designs") {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,9 +83,45 @@ export default function ProfilePage() {
     enabled: !!userInfo && activeTab === "liked",
   });
 
+  // Fetch Pre-Orders
+  const { data: preOrdersData, isLoading: preOrdersLoading } = useQuery({
+    queryKey: ["user-preorders"],
+    queryFn: async () => {
+      const { data } = await axios.get("/api/user/preorders", {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+      return data;
+    },
+    enabled: !!userInfo && activeTab === "orders",
+  });
+
   const profile = data?.user;
-  const orders = data?.orders;
+  const rawOrders = data?.orders || [];
+  const preOrders = preOrdersData?.preOrders || [];
   const designs = data?.designs;
+
+  // Merge orders and pre-orders for unified display
+  const orders = [
+    ...rawOrders.map((o: any) => ({ ...o, orderType: 'regular' })),
+    ...preOrders.map((po: any) => ({
+      id: po.id,
+      orderNumber: po.orderNumber,
+      totalPrice: po.totalAmount,
+      createdAt: po.createdAt,
+      status: po.status.charAt(0).toUpperCase() + po.status.slice(1), // Capitalize first letter
+      isPaid: po.paymentStatus === 'paid',
+      orderType: 'preorder',
+      preOrderData: po, // Keep full pre-order data
+      orderItems: po.items?.map((item: any) => ({
+        name: item.product?.name || 'Product',
+        qty: item.quantity,
+        price: item.price,
+        size: item.size,
+        image: item.product?.images?.[0] || '',
+        product: item.product
+      })) || []
+    }))
+  ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const updateMutation = useMutation({
     mutationFn: async (formData: any) => {
@@ -772,38 +817,135 @@ export default function ProfilePage() {
 
           {/* Orders Tab */}
           {activeTab === "orders" && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {orders?.map((order: any) => (
-                <div key={order.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition">
-                  <div className="flex justify-between items-start">
+                <div key={order.id} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-700 transition">
+                  {/* Order Header */}
+                  <div className="p-4 border-b border-zinc-800 flex flex-wrap justify-between items-center gap-2">
                     <div>
-                      <p className="font-bold text-white">Order #{order.id.substring(0, 8)}</p>
-                      <p className="text-sm text-gray-500 mt-0.5">{dayjs(order.createdAt).format("DD MMM YYYY, hh:mm A")}</p>
+                      <p className="font-bold text-white flex items-center gap-2">
+                        <Package size={16} className="text-red-500" />
+                        Order #{order.id.substring(0, 8)}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {dayjs(order.createdAt).format("DD MMM YYYY, hh:mm A")}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-lg">₹{order.totalPrice}</p>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${order.isPaid
-                        ? "bg-green-500/20 text-green-400"
-                        : "bg-yellow-500/20 text-yellow-400"
-                        }`}>
-                        {order.isPaid ? "Paid" : "Pending"}
-                      </span>
+                      <p className="font-bold text-lg text-white">₹{order.totalPrice}</p>
+                      <div className="flex gap-2 justify-end mt-1">
+                        {order.orderType === 'preorder' && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                            ⏰ PRE-ORDER
+                          </span>
+                        )}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${order.isPaid
+                          ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                          : "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                          }`}>
+                          {order.isPaid ? "✓ Paid" : "⏳ Pending"}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${order.status === "Delivered"
+                          ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                          : order.status === "Shipped"
+                            ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                            : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                          }`}>
+                          {order.status === "Delivered" ? "✓ Delivered" : order.status === "Shipped" ? "🚚 Shipped" : "📦 Processing"}
+                        </span>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Order Items */}
                   {order.orderItems?.length > 0 && (
-                    <div className="mt-3 flex gap-2 overflow-x-auto">
-                      {order.orderItems.slice(0, 4).map((item: any, i: number) => (
-                        <div key={i} className="w-12 h-12 bg-zinc-800 rounded flex-shrink-0 overflow-hidden">
-                          {item.image && <img src={item.image} className="w-full h-full object-cover" alt="" />}
+                    <div className="p-4 space-y-3">
+                      {order.orderItems.map((item: any, i: number) => (
+                        <div key={i} className="flex gap-3 items-center">
+                          <div className="w-16 h-16 bg-zinc-800 rounded-lg flex-shrink-0 overflow-hidden border border-zinc-700">
+                            {item.image ? (
+                              <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-600">
+                                <Package size={20} />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-white truncate">{item.name}</p>
+                            <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                              <span className="bg-zinc-800 px-2 py-0.5 rounded">Size: {item.size || "M"}</span>
+                              <span>Qty: {item.qty}</span>
+                            </div>
+                          </div>
+                          <div className="text-right flex flex-col items-end gap-2">
+                            <p className="font-bold text-white">₹{item.price}</p>
+
+                            {/* Review Button Logic:
+                                1. Must be Delivered
+                                2. Must NOT be custom (community design) - API sets isCustom: false for shop designs
+                                3. Must be either a regular product (slug) OR a shop design (designId)
+                            */}
+                            {order.status === "Delivered" && !item.isCustom && (
+                              (item.product?.slug && item.product.name === item.name) ||
+                              item.designId
+                            ) && (
+                                <Link
+                                  href={item.designId ? `/product/design-${item.designId}#reviews` : `/product/${item.product.slug}#reviews`}
+                                  className="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded font-medium transition flex items-center gap-1"
+                                >
+                                  <Award size={12} />
+                                  Review
+                                </Link>
+                              )}
+                          </div>
                         </div>
                       ))}
-                      {order.orderItems.length > 4 && (
-                        <div className="w-12 h-12 bg-zinc-800 rounded flex-shrink-0 flex items-center justify-center text-xs text-gray-500">
-                          +{order.orderItems.length - 4}
+                    </div>
+                  )}
+
+                  {/* Shipping Info Hint */}
+                  {order.isPaid && order.status !== "Delivered" && (
+                    <div className="px-4 pb-4">
+                      {order.status === "Shipped" ? (
+                        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-3 text-xs text-purple-400">
+                          <p className="font-semibold">🚚 Your order has been shipped!</p>
+                          <p className="text-purple-300/70 mt-1">It's on the way. You'll receive it soon.</p>
+                        </div>
+                      ) : (
+                        <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 text-xs text-blue-400">
+                          <p className="font-semibold">📦 Your order is being prepared</p>
+                          <p className="text-blue-300/70 mt-1">We'll notify you when it ships.</p>
                         </div>
                       )}
                     </div>
                   )}
+
+                  {/* Pre-Order Campaign Info */}
+                  {order.orderType === 'preorder' && order.preOrderData?.campaign && (
+                    <div className="px-4 pb-4">
+                      <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-3 text-xs">
+                        <p className="font-semibold text-purple-400 mb-1">⏰ Pre-Order Campaign</p>
+                        <p className="text-purple-300/70">{order.preOrderData.campaign.name}</p>
+                        {order.preOrderData.campaign.status === 'active' && (
+                          <p className="text-purple-300/70 mt-1">
+                            Expected delivery: ~{order.preOrderData.campaign.deliveryDays} days after campaign ends
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Track Order Button */}
+                  <div className="px-4 pb-4">
+                    <Link
+                      href={`/track-order?orderId=${order.id}`}
+                      className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white py-2.5 rounded-lg font-medium transition text-sm border border-zinc-700"
+                    >
+                      <Truck size={16} />
+                      Track Order
+                    </Link>
+                  </div>
                 </div>
               ))}
 

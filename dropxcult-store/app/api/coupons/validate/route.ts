@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
         // Check usage limit
         if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
-            return NextResponse.json({ error: "This coupon has reached its usage limit" }, { status: 400 });
+            return NextResponse.json({ error: "Invalid coupon code" }, { status: 400 });
         }
 
         // Check minimum order amount

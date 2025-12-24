@@ -254,8 +254,9 @@ export default function CustomizeDashboard() {
     const req = cartModal.design;
     if (!req) return;
 
-    // Calculate price - flat ₹999 for all custom designs
-    const price = 999;
+    // Calculate price - match backend logic
+    const isOversized = req.tshirtType === "oversized";
+    const price = isOversized ? 1299 : 999;
 
     dispatch(addToCart({
       id: req.id,

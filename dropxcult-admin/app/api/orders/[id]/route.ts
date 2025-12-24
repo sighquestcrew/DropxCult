@@ -85,3 +85,40 @@ export async function PATCH(
     }
 }
 
+// DELETE - Delete order
+export async function DELETE(
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const { id } = await params;
+
+    try {
+        // Delete order items first (if cascade not set, though highly recommended to have cascade in schema)
+        // We will try deleting the order directly. If it fails due to foreign key, we might need to delete items first.
+        // Assuming schema handles cascade or we manually delete items.
+        // Let's manually delete items to be safe if cascade isn't perfect.
+        await prisma.orderItem.deleteMany({
+            where: { orderId: id }
+        });
+
+        const order = await prisma.order.delete({
+            where: { id }
+        });
+
+        // Audit log: Order deleted
+        await logAudit({
+            userRole: "admin",
+            action: "DELETE",
+            entity: "Order",
+            entityId: id,
+            details: {
+                previousStatus: order.status
+            },
+        });
+
+        return NextResponse.json({ message: "Order deleted successfully" });
+    } catch (error) {
+        console.error("Order delete error:", error);
+        return NextResponse.json({ error: "Failed to delete order" }, { status: 500 });
+    }
+}

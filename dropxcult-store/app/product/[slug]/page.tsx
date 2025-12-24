@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { addToCart } from "@/redux/slices/cartSlice";
@@ -188,14 +188,19 @@ export default function ProductPage() {
     }
 
     if (product) {
+      // Check if this is a 3D design for pricing only
+      const is3DDesign = product.slug?.startsWith('design-') || product.is3DDesign;
+
       dispatch(addToCart({
         id: product.id,
         name: product.name,
         slug: product.slug,
-        price: product.price,
+        price: is3DDesign ? (product.tshirtType === 'oversized' ? 1299 : 999) : product.price,
         image: product.images[0],
         size: selectedSize,
-        qty: qty
+        qty: qty,
+        // Products from Shop are NOT custom - they have product pages for reviews
+        isCustom: false
       }));
       toast.success(`Added ${product.name} to Cart`);
     }
@@ -248,6 +253,10 @@ export default function ProductPage() {
       addToRecentlyViewed(product);
     }
   }, [product]);
+
+  // Read view mode
+  const searchParams = useSearchParams();
+  const isViewOnly = searchParams.get('view') === 'admin';
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-red-600" /></div>;
   if (!product) return <div className="h-screen flex items-center justify-center bg-black text-white">Product Not Found</div>;
@@ -318,14 +327,19 @@ export default function ProductPage() {
                     <span className="text-gray-400">{product.garmentType}</span>
                   </>
                 )}
+                {isViewOnly && (
+                  <span className="ml-auto bg-yellow-500 text-black px-2 py-0.5 rounded text-[10px] font-bold">PREVIEW MODE</span>
+                )}
               </div>
               <div className="flex items-start justify-between gap-4 mb-3">
                 <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">{product.name}</h1>
-                <WishlistButton
-                  product={product}
-                  className="w-12 h-12 bg-zinc-800 hover:bg-zinc-700 rounded-full flex items-center justify-center shrink-0 border border-zinc-700"
-                  size={24}
-                />
+                {!isViewOnly && (
+                  <WishlistButton
+                    product={product}
+                    className="w-12 h-12 bg-zinc-800 hover:bg-zinc-700 rounded-full flex items-center justify-center shrink-0 border border-zinc-700"
+                    size={24}
+                  />
+                )}
               </div>
 
               {/* Designer Attribution for 3D Designs */}
@@ -338,15 +352,17 @@ export default function ProductPage() {
                 </div>
               )}
 
-              {/* Rating */}
-              <div className="flex items-center gap-2 mb-3">
-                <div className="flex">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star key={star} size={16} className={star <= 5 ? "text-yellow-500 fill-yellow-500" : "text-gray-600"} />
-                  ))}
+              {/* Rating - Hidden in View Only */}
+              {!isViewOnly && (
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star key={star} size={16} className={star <= 5 ? "text-yellow-500 fill-yellow-500" : "text-gray-600"} />
+                    ))}
+                  </div>
+                  <span className="text-sm text-gray-400">(127 reviews)</span>
                 </div>
-                <span className="text-sm text-gray-400">(127 reviews)</span>
-              </div>
+              )}
 
               <p className="text-2xl text-white font-bold">
                 ₹{product.is3DDesign ? 999 : product.price}
@@ -360,20 +376,20 @@ export default function ProductPage() {
               </div>
             )}
 
-            {/* View in 3D Button */}
+            {/* View in 3D Button - Highlighted in View Only */}
             {product.is3DDesign && (
               <Link
                 href={`${process.env.NEXT_PUBLIC_EDITOR_URL || 'http://localhost:3000'}?designId=${product.id}&viewOnly=true`}
                 target="_blank"
-                className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-3 px-6 rounded font-bold uppercase tracking-wider transition-colors"
+                className={`flex items-center justify-center gap-2 text-white py-3 px-6 rounded font-bold uppercase tracking-wider transition-colors ${isViewOnly ? 'bg-blue-600 hover:bg-blue-700 w-full animate-pulse' : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'}`}
               >
                 <Eye size={18} />
-                View in 3D
+                {isViewOnly ? "Open 3D Viewer" : "View in 3D"}
               </Link>
             )}
 
-            {/* Pre-Order Campaign Banner */}
-            {activeCampaign && (
+            {/* Pre-Order Campaign Banner - Hidden in View Only */}
+            {!isViewOnly && activeCampaign && (
               <PreOrderBanner
                 productId={product.id}
                 campaign={activeCampaign}
@@ -393,58 +409,63 @@ export default function ProductPage() {
               />
             )}
 
-            {/* Size Selector with Chart Link */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Select Size</h3>
-                <button
-                  onClick={() => setShowSizeChart(true)}
-                  className="text-xs text-red-500 hover:text-red-400 flex items-center gap-1 transition-colors"
-                >
-                  <Ruler size={14} />
-                  Size Chart
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {product.sizes.map((size: string) => (
+            {/* Size Selector & Cart buttons - HIDDEN IN VIEW ONLY */}
+            {!isViewOnly && (
+              <>
+                {/* Size Selector with Chart Link */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400">Select Size</h3>
+                    <button
+                      onClick={() => setShowSizeChart(true)}
+                      className="text-xs text-red-500 hover:text-red-400 flex items-center gap-1 transition-colors"
+                    >
+                      <Ruler size={14} />
+                      Size Chart
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {product.sizes.map((size: string) => (
+                      <button
+                        key={size}
+                        onClick={() => setSelectedSize(size)}
+                        className={`h-11 w-11 sm:h-12 sm:w-12 flex items-center justify-center border transition-all font-bold text-sm
+                        ${selectedSize === size
+                            ? "bg-white text-black border-white scale-105"
+                            : "bg-transparent text-gray-400 border-zinc-700 hover:border-gray-400 hover:text-white"
+                          }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Quantity & Add Button */}
+                <div className="flex items-center gap-3 pt-2">
+                  <div className="flex items-center border border-zinc-700 h-10 px-3 space-x-3 rounded">
+                    <button onClick={() => setQty(Math.max(1, qty - 1))} className="text-gray-400 hover:text-white transition">
+                      <Minus size={14} />
+                    </button>
+                    <span className="font-bold w-6 text-center text-sm">{qty}</span>
+                    <button onClick={() => setQty(qty + 1)} className="text-gray-400 hover:text-white transition">
+                      <Plus size={14} />
+                    </button>
+                  </div>
+
                   <button
-                    key={size}
-                    onClick={() => setSelectedSize(size)}
-                    className={`h-11 w-11 sm:h-12 sm:w-12 flex items-center justify-center border transition-all font-bold text-sm
-                      ${selectedSize === size
-                        ? "bg-white text-black border-white scale-105"
-                        : "bg-transparent text-gray-400 border-zinc-700 hover:border-gray-400 hover:text-white"
-                      }`}
+                    onClick={handleAddToCart}
+                    disabled={product.stock <= 0}
+                    className={`flex-1 h-10 font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors text-xs rounded ${product.stock > 0 ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-zinc-700 text-zinc-400 cursor-not-allowed hidden'}`}
                   >
-                    {size}
+                    <ShoppingBag size={14} />
+                    Add to Cart
                   </button>
-                ))}
-              </div>
-            </div>
+                </div>
+              </>
+            )}
 
-            {/* Quantity & Add Button */}
-            <div className="flex items-center gap-3 pt-2">
-              <div className="flex items-center border border-zinc-700 h-10 px-3 space-x-3 rounded">
-                <button onClick={() => setQty(Math.max(1, qty - 1))} className="text-gray-400 hover:text-white transition">
-                  <Minus size={14} />
-                </button>
-                <span className="font-bold w-6 text-center text-sm">{qty}</span>
-                <button onClick={() => setQty(qty + 1)} className="text-gray-400 hover:text-white transition">
-                  <Plus size={14} />
-                </button>
-              </div>
-
-              <button
-                onClick={handleAddToCart}
-                disabled={product.stock <= 0}
-                className={`flex-1 h-10 font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors text-xs rounded ${product.stock > 0 ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-zinc-700 text-zinc-400 cursor-not-allowed hidden'}`}
-              >
-                <ShoppingBag size={14} />
-                Add to Cart
-              </button>
-            </div>
-
-            {/* Shipping & Returns Accordion */}
+            {/* Shipping & Returns Accordion - Always visible but maybe collapsed */}
             <div className="border-t border-zinc-800 pt-4 space-y-2">
               {/* Shipping Info */}
               <button
@@ -501,7 +522,7 @@ export default function ProductPage() {
               )}
             </div>
 
-            {/* Product Details */}
+            {/* Product Details - Always Visible */}
             <div className="border-t border-zinc-800 pt-6 space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-500">SKU:</span>
@@ -535,8 +556,8 @@ export default function ProductPage() {
           </div>
         </div>
 
-        {/* Related Products */}
-        {relatedProducts && relatedProducts.length > 0 && (
+        {/* Related Products - HIDDEN in View Only */}
+        {!isViewOnly && relatedProducts && relatedProducts.length > 0 && (
           <div className="max-w-7xl mx-auto mt-16">
             <h2 className="text-2xl font-bold mb-8">You May Also Like</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -560,8 +581,8 @@ export default function ProductPage() {
         )}
       </div>
 
-      {/* Size Chart Modal */}
-      {showSizeChart && (
+      {/* Size Chart Modal - HIDDEN in View Only */}
+      {!isViewOnly && showSizeChart && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowSizeChart(false)}>
           <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
@@ -613,8 +634,8 @@ export default function ProductPage() {
         </div>
       )}
 
-      {/* Reviews Section */}
-      {product && (
+      {/* Reviews Section - HIDDEN or Read Only? Let's hide for clean view */}
+      {!isViewOnly && product && (
         <div className="max-w-6xl mx-auto px-4 pb-12">
           {product.slug?.startsWith('design-') ? (
             <ReviewSection designId={product.id} />

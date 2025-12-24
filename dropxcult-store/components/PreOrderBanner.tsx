@@ -103,8 +103,8 @@ export default function PreOrderBanner({ productId, campaign, onPreOrderClick }:
                 <div className="h-3 bg-black/30 rounded-full overflow-hidden">
                     <div
                         className={`h-full transition-all duration-500 ${campaign.progress >= 100
-                                ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                                : 'bg-gradient-to-r from-purple-500 to-pink-500'
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                            : 'bg-gradient-to-r from-purple-500 to-pink-500'
                             }`}
                         style={{ width: `${Math.min(100, campaign.progress)}%` }}
                     />
@@ -146,14 +146,23 @@ export default function PreOrderBanner({ productId, campaign, onPreOrderClick }:
                 </div>
             </div>
 
-            {/* CTA Button */}
-            <button
-                onClick={onPreOrderClick}
-                className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-lg transition-all uppercase tracking-wider flex items-center justify-center gap-2"
-            >
-                <Clock size={18} />
-                Pre-Order Now
-            </button>
+            {/* CTA Button - Only show if goal NOT met */}
+            {campaign.progress < 100 && (
+                <button
+                    onClick={onPreOrderClick}
+                    className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-lg transition-all uppercase tracking-wider flex items-center justify-center gap-2"
+                >
+                    <Clock size={18} />
+                    Pre-Order Now
+                </button>
+            )}
+
+            {/* Goal Reached Message */}
+            {campaign.progress >= 100 && (
+                <div className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-lg text-center uppercase tracking-wider">
+                    ✓ Goal Reached - Pre-Orders Closed
+                </div>
+            )}
         </div>
     );
 }

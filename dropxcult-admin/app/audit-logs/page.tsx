@@ -47,6 +47,7 @@ const actionColors: Record<string, string> = {
     STATUS_CHANGE: "bg-orange-500/20 text-orange-400",
     PAYMENT: "bg-emerald-500/20 text-emerald-400",
     REFUND: "bg-pink-500/20 text-pink-400",
+    RATE_LIMITED: "bg-amber-500/20 text-amber-500",
 };
 
 const actionIcons: Record<string, string> = {
@@ -62,6 +63,7 @@ const actionIcons: Record<string, string> = {
     STATUS_CHANGE: "🔄",
     PAYMENT: "💰",
     REFUND: "💸",
+    RATE_LIMITED: "✋",
 };
 
 export default function AuditLogsPage() {
@@ -295,6 +297,7 @@ export default function AuditLogsPage() {
                             <option value="STATUS_CHANGE">🔄 Status Change</option>
                             <option value="PAYMENT">💰 Payment</option>
                             <option value="REFUND">💸 Refund</option>
+                            <option value="RATE_LIMITED">✋ Rate Limited</option>
                         </select>
 
                         <select
@@ -308,6 +311,7 @@ export default function AuditLogsPage() {
                             <option value="Design">Design</option>
                             <option value="Product">Product</option>
                             <option value="CustomRequest">Custom Request</option>
+                            <option value="Security">Security</option>
                         </select>
 
                         <select

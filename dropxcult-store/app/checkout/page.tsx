@@ -53,6 +53,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const dispatch = useDispatch();
   const { items, totalPrice } = useSelector((state: RootState) => state.cart);
+  const { userInfo } = useSelector((state: RootState) => state.auth);
   const [isProcessing, setIsProcessing] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "cod">("razorpay");
@@ -72,12 +73,10 @@ export default function CheckoutPage() {
 
   // Redirect if cart is empty
   useEffect(() => {
-    if (items.length === 0) {
+    if (items.length === 0 && !isProcessing) {
       router.push("/");
     }
-  }, [items, router]);
-
-  if (items.length === 0) return null;
+  }, [items, router, isProcessing]);
 
   // Setup Form
   const {
@@ -90,6 +89,8 @@ export default function CheckoutPage() {
       country: "India",
     },
   });
+
+  if (items.length === 0) return null;
 
   // Calculate final price
   const discountAmount = appliedCoupon?.discountAmount || 0;
@@ -144,6 +145,8 @@ export default function CheckoutPage() {
         paymentMethod: paymentMethod,
         couponCode: appliedCoupon?.code || null,
         discountAmount: discountAmount,
+      }, {
+        headers: userInfo?.token ? { Authorization: `Bearer ${userInfo.token}` } : {}
       });
 
       const { orderId, razorpayOrderId, amount, currency, error } = orderResponse.data;
@@ -164,7 +167,7 @@ export default function CheckoutPage() {
       }
 
       // Check if Razorpay key is available
-      if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
+      if (!process.env.NEXT_PUBLIC_RAZORPAY_API_KEY) {
         // DEMO MODE - Show popup instead of real payment
         toast.success(
           <div className="space-y-2">
@@ -191,7 +194,7 @@ export default function CheckoutPage() {
 
       // 2. Configure Razorpay options
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        key: process.env.NEXT_PUBLIC_RAZORPAY_API_KEY,
         amount: amount * 100, // Amount in paise
         currency: currency,
         name: "DropX Cult",
@@ -244,6 +247,7 @@ export default function CheckoutPage() {
       };
 
       // 4. Open Razorpay checkout
+      console.log("Opening Razorpay with options:", { ...options, key: "HIDDEN" });
       const razorpay = new window.Razorpay(options);
       razorpay.on("payment.failed", function (response: any) {
         console.error("Payment failed:", response.error);

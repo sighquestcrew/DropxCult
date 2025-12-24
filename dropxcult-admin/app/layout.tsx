@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import Link from "next/link";
-import { LayoutDashboard, ShoppingBag, Users, Package, Palette, Box, MessageCircle, Ticket, Calendar, ScrollText } from "lucide-react";
+import { LayoutDashboard, ShoppingBag, Users, Package, Palette, Box, MessageCircle, Ticket, Calendar, ScrollText, Clock } from "lucide-react";
 import SearchBarWrapper from "@/components/SearchBarWrapper";
 import AuthControlsWrapper from "@/components/AuthControlsWrapper";
 
@@ -40,6 +40,10 @@ export default function RootLayout({
                 <Link href="/orders" className="flex items-center gap-3 text-gray-400 hover:text-white hover:bg-zinc-900 p-2 rounded transition">
                   <Package size={20} />
                   Orders
+                </Link>
+                <Link href="/preorders" className="flex items-center gap-3 text-gray-400 hover:text-white hover:bg-zinc-900 p-2 rounded transition">
+                  <Clock size={20} />
+                  Pre-Orders
                 </Link>
                 <Link href="/users" className="flex items-center gap-3 text-gray-400 hover:text-white hover:bg-zinc-900 p-2 rounded transition">
                   <Users size={20} />
@@ -101,6 +105,9 @@ export default function RootLayout({
                   </Link>
                   <Link href="/orders" className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-zinc-900 px-3 py-2 rounded whitespace-nowrap flex-shrink-0">
                     <Package size={14} /> Orders
+                  </Link>
+                  <Link href="/preorders" className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-zinc-900 px-3 py-2 rounded whitespace-nowrap flex-shrink-0">
+                    <Clock size={14} /> Pre-Orders
                   </Link>
                   <Link href="/users" className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-zinc-900 px-3 py-2 rounded whitespace-nowrap flex-shrink-0">
                     <Users size={14} /> Users
