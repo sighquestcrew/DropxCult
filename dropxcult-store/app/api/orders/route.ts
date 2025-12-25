@@ -103,6 +103,7 @@ export async function POST(req: Request) {
           price: price,
           size: item.size,
           isCustom: true, // Custom design from Community
+          designId: item.designId, // IMPORTANT: Include designId for royalty tracking
           // Use the default product ID for ALL custom items to satisfy Foreign Key
           productId: defaultProduct.id
         });

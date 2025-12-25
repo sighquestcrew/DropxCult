@@ -43,6 +43,12 @@ export async function PATCH(
 
         if (status !== undefined) {
             updateData.status = status;
+
+            // Auto-sync: if status is "Delivered", set isDelivered = true
+            if (status === "Delivered") {
+                updateData.isDelivered = true;
+                updateData.deliveredAt = new Date();
+            }
         }
 
         if (isPaid !== undefined) {

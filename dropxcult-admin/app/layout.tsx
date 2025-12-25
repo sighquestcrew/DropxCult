@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import Link from "next/link";
-import { LayoutDashboard, ShoppingBag, Users, Package, Palette, Box, MessageCircle, Ticket, Calendar, ScrollText, Clock } from "lucide-react";
+import { LayoutDashboard, ShoppingBag, Users, Package, Palette, Box, MessageCircle, Ticket, Calendar, ScrollText, Clock, DollarSign } from "lucide-react";
 import SearchBarWrapper from "@/components/SearchBarWrapper";
 import AuthControlsWrapper from "@/components/AuthControlsWrapper";
 
@@ -69,6 +69,10 @@ export default function RootLayout({
                   <Calendar size={20} />
                   Campaigns
                 </Link>
+                <Link href="/withdrawals" className="flex items-center gap-3 text-gray-400 hover:text-white hover:bg-zinc-900 p-2 rounded transition">
+                  <DollarSign size={20} />
+                  Withdrawals
+                </Link>
                 <Link href="/audit-logs" className="flex items-center gap-3 text-gray-400 hover:text-white hover:bg-zinc-900 p-2 rounded transition">
                   <ScrollText size={20} />
                   Audit Logs
@@ -120,6 +124,9 @@ export default function RootLayout({
                   </Link>
                   <Link href="/inquiries" className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-zinc-900 px-3 py-2 rounded whitespace-nowrap flex-shrink-0">
                     <MessageCircle size={14} /> Inquiries
+                  </Link>
+                  <Link href="/withdrawals" className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-zinc-900 px-3 py-2 rounded whitespace-nowrap flex-shrink-0">
+                    <DollarSign size={14} /> Withdrawals
                   </Link>
                   <Link href="/audit-logs" className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-zinc-900 px-3 py-2 rounded whitespace-nowrap flex-shrink-0">
                     <ScrollText size={14} /> Logs

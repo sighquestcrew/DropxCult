@@ -130,6 +130,75 @@ export async function POST(req: Request) {
                 // Don't fail the request, just log it
             }
 
+            // Credit Royalties to Designers for Custom Designs
+            try {
+                console.log("Processing royalties for order:", orderId);
+
+                for (const item of order.orderItems) {
+                    // Only process items with designId (custom designs)
+                    if (item.designId) {
+                        console.log(`Processing royalty for designId: ${item.designId}`);
+
+                        // Try to find the design in CustomRequest first
+                        let designerUserId: string | null = null;
+                        let designType: string = "unknown";
+
+                        const customRequest = await prisma.customRequest.findUnique({
+                            where: { id: item.designId },
+                            select: { userId: true }
+                        });
+
+                        if (customRequest) {
+                            designerUserId = customRequest.userId;
+                            designType = "CustomRequest";
+                        } else {
+                            // If not found in CustomRequest, check Design table
+                            const design3D = await prisma.design.findUnique({
+                                where: { id: item.designId },
+                                select: { userId: true }
+                            });
+
+                            if (design3D) {
+                                designerUserId = design3D.userId;
+                                designType = "Design";
+                            }
+                        }
+
+                        if (designerUserId) {
+                            // Check if buyer is different from designer (no self-royalty)
+                            if (order.userId && order.userId === designerUserId) {
+                                console.log(`Skipping royalty: Designer ${designerUserId} purchased their own design`);
+                                continue;
+                            }
+
+                            // Calculate 10% royalty
+                            const royaltyAmount = Math.round((item.price * item.qty) * 0.10);
+
+                            console.log(`Crediting ${royaltyAmount} royalty to designer ${designerUserId} for ${designType}`);
+
+                            // Update designer's royalty points and earnings
+                            await prisma.user.update({
+                                where: { id: designerUserId },
+                                data: {
+                                    royaltyPoints: { increment: royaltyAmount },
+                                    royaltyEarnings: { increment: royaltyAmount }
+                                }
+                            });
+
+                            console.log(`✅ Royalty credited: ₹${royaltyAmount} to user ${designerUserId}`);
+                        } else {
+                            console.log(`⚠️ Design ${item.designId} not found in CustomRequest or Design tables`);
+                        }
+                    }
+                }
+
+                console.log("Royalty processing completed");
+            } catch (royaltyError) {
+                console.error("Failed to process royalties:", royaltyError);
+                // Don't fail the order completion, just log the error
+                // Admin can manually credit royalties if needed
+            }
+
             return NextResponse.json({
                 success: true,
                 message: "Payment verified successfully",

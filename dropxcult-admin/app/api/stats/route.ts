@@ -86,33 +86,63 @@ export async function GET() {
     const unpaidOrders = await prisma.order.count({ where: { isPaid: false } });
     const deliveredOrders = await prisma.order.count({ where: { isDelivered: true } });
 
-    // Top 5 selling products (by order items)
-    const topProducts = await prisma.orderItem.groupBy({
-      by: ['productId'],
-      _sum: { qty: true },
-      _count: true,
-      orderBy: { _sum: { qty: 'desc' } },
-      take: 5
+    // Top 5 selling products (by order items from PAID orders only)
+    // Use name from OrderItem directly as it stores the actual product name ordered
+    const paidOrderIds = (await prisma.order.findMany({
+      where: { isPaid: true },
+      select: { id: true }
+    })).map(o => o.id);
+
+    // Get all order items from paid orders
+    const orderItems = await prisma.orderItem.findMany({
+      where: { orderId: { in: paidOrderIds } },
+      select: { name: true, qty: true, price: true, image: true, designId: true }
     });
 
-    // Get product details for top products
-    const productIds = topProducts.map(p => p.productId);
-    const productDetails = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, name: true, price: true, images: true }
+    // Group by product name AND designId to distinguish specific custom designs
+    // Group by product name AND designId to distinguish specific custom designs
+    // Group by product Name + Image to merge identical designs even if designId is missing
+    const productSales: Record<string, { id: string; name: string; designId?: string | null; qty: number; orderCount: number; price: number; image: string }> = {};
+
+    orderItems.forEach(item => {
+      // Create a unique key using Name + Image URL
+      // This merges items that look the same (same image), solving the issue where some have designId and others don't
+      const uniqueKey = `${item.name}-${item.image}`;
+
+      if (!productSales[uniqueKey]) {
+        productSales[uniqueKey] = {
+          id: uniqueKey,
+          name: item.name,
+          designId: item.designId, // Initialize with current designId
+          qty: 0,
+          orderCount: 0,
+          price: item.price,
+          image: item.image
+        };
+      }
+
+      // If we encounter a designId and the existing entry doesn't have one, update it
+      if (item.designId && !productSales[uniqueKey].designId) {
+        productSales[uniqueKey].designId = item.designId;
+      }
+
+      productSales[uniqueKey].qty += item.qty;
+      productSales[uniqueKey].orderCount += 1;
     });
 
-    const topProductsWithDetails = topProducts.map(tp => {
-      const product = productDetails.find(p => p.id === tp.productId);
-      return {
-        id: tp.productId,
-        name: product?.name || "Unknown",
-        image: product?.images[0] || "",
-        price: product?.price || 0,
-        totalSold: tp._sum.qty || 0,
-        orderCount: tp._count
-      };
-    });
+    // Sort by quantity sold and take top 5
+    const topProductsWithDetails = Object.values(productSales)
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        designId: p.designId, // Pass design Id to frontend
+        image: p.image,
+        price: p.price,
+        totalSold: p.qty,
+        orderCount: p.orderCount
+      }));
 
     // New users this month
     const newUsersThisMonth = await prisma.user.count({
@@ -149,6 +179,14 @@ export async function GET() {
       lowStockCount: await prisma.product.count({ where: { stock: { gt: 0, lte: 5 } } }),
       outOfStockCount: await prisma.product.count({ where: { stock: 0 } }),
       pendingPreorders: await prisma.preorder.count({ where: { status: "Pending" } }),
+
+      // Creator Payouts
+      totalPayouts: (await prisma.withdrawalRequest.aggregate({
+        _sum: { amount: true },
+        where: { status: "processed" }
+      }))._sum.amount || 0,
+      pendingWithdrawals: await prisma.withdrawalRequest.count({ where: { status: "pending" } }),
+      processedWithdrawals: await prisma.withdrawalRequest.count({ where: { status: "processed" } }),
     });
   } catch (error) {
     console.error("Stats error:", error);

@@ -60,6 +60,9 @@ model User {
   // Referrals
   referralsMade   Referral[] @relation("ReferrerRelation")
   referredBy      Referral?  @relation("RefereeRelation")
+  
+  // Withdrawal System
+  withdrawalRequests WithdrawalRequest[]
 }
 
 model Product {
@@ -498,9 +501,35 @@ model TwoFactorCode {
   @@index([expiresAt])
 }
 
-
-
-
+// Withdrawal System
+model WithdrawalRequest {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  amount          Float    // Amount in rupees (royalty points = rupees)
+  status          String   @default("pending") // pending, approved, rejected, processed
+  
+  // Bank Details
+  accountName     String
+  accountNumber   String
+  ifscCode        String
+  bankName        String
+  upiId           String?  // Optional UPI ID
+  
+  // Admin fields
+  adminNote       String?
+  processedBy     String?  // Admin user ID who processed this
+  processedAt     DateTime?
+  transactionId   String?  // Payment reference/transaction ID
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
 
 
 

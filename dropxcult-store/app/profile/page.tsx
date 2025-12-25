@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { setCredentials, logout } from "@/redux/slices/authSlice";
 import dayjs from "dayjs";
 import Link from "next/link";
+import WithdrawModal from "@/components/WithdrawModal";
 
 export default function ProfilePage() {
   const { userInfo } = useSelector((state: RootState) => state.auth);
@@ -33,6 +34,9 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showFollowModal, setShowFollowModal] = useState<"followers" | "following" | null>(null);
   const [designFilter, setDesignFilter] = useState<"all" | "public" | "draft">("all");
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [showAllSales, setShowAllSales] = useState(false);
+  const [showAllWithdrawals, setShowAllWithdrawals] = useState(false);
 
   const filterDesigns = (list: any[]) => {
     if (!list) return [];
@@ -93,6 +97,30 @@ export default function ProfilePage() {
       return data;
     },
     enabled: !!userInfo && activeTab === "orders",
+  });
+
+  // Fetch Royalty History
+  const { data: royaltyHistory } = useQuery({
+    queryKey: ["royalty-history"],
+    queryFn: async () => {
+      const { data } = await axios.get("/api/user/royalty-history", {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+      return data;
+    },
+    enabled: !!userInfo && activeTab === "designs",
+  });
+
+  // Fetch Withdrawal Requests
+  const { data: withdrawalData } = useQuery({
+    queryKey: ["withdrawal-requests"],
+    queryFn: async () => {
+      const { data } = await axios.get("/api/user/withdraw", {
+        headers: { Authorization: `Bearer ${userInfo?.token}` }
+      });
+      return data;
+    },
+    enabled: !!userInfo && activeTab === "designs",
   });
 
   const profile = data?.user;
@@ -710,13 +738,81 @@ export default function ProfilePage() {
                     <p className="text-xs text-gray-400">Royalty Points</p>
                   </div>
                   <button
-                    onClick={handleWithdraw}
+                    onClick={() => setWithdrawModalOpen(true)}
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold text-sm rounded-lg transition"
                   >
                     Withdraw
                   </button>
                 </div>
               </div>
+
+              {/* Sales & Withdrawal History - Side by Side */}
+              {(profile.royaltyPoints > 0 || withdrawalData?.requests?.length > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  {/* Sales History */}
+                  {royaltyHistory?.transactions?.length > 0 && (
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-bold text-sm flex items-center gap-1">
+                          <TrendingUp size={14} className="text-green-500" />
+                          Recent Sales
+                        </h3>
+                        <span className="text-xs text-gray-500">{royaltyHistory.summary?.totalSales || 0}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {royaltyHistory.transactions.slice(0, showAllSales ? 20 : 3).map((tx: any) => (
+                          <div key={tx.id} className="flex items-center justify-between p-2 bg-black/50 rounded-lg text-xs">
+                            <span className="truncate flex-1 mr-2">{tx.designName}</span>
+                            <span className="text-green-500 font-bold">+₹{tx.royaltyEarned}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {royaltyHistory.transactions.length > 3 && (
+                        <button
+                          onClick={() => setShowAllSales(!showAllSales)}
+                          className="w-full mt-2 text-xs text-blue-400 hover:text-blue-300"
+                        >
+                          {showAllSales ? "Show less" : `View all ${royaltyHistory.transactions.length}`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Withdrawal History */}
+                  {withdrawalData?.requests?.length > 0 && (
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-bold text-sm flex items-center gap-1">
+                          <Wallet size={14} className="text-blue-500" />
+                          Withdrawals
+                        </h3>
+                        <span className="text-xs text-gray-500">{withdrawalData.requests.length}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {withdrawalData.requests.slice(0, showAllWithdrawals ? 20 : 3).map((req: any) => (
+                          <div key={req.id} className="flex items-center justify-between p-2 bg-black/50 rounded-lg text-xs">
+                            <span>₹{req.amount}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs ${req.status === "pending" ? "bg-yellow-500/20 text-yellow-400" :
+                              req.status === "processed" ? "bg-green-500/20 text-green-400" :
+                                "bg-red-500/20 text-red-400"
+                              }`}>
+                              {req.status === "pending" ? "Pending" : req.status === "processed" ? "Done" : "Rejected"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {withdrawalData.requests.length > 3 && (
+                        <button
+                          onClick={() => setShowAllWithdrawals(!showAllWithdrawals)}
+                          className="w-full mt-2 text-xs text-blue-400 hover:text-blue-300"
+                        >
+                          {showAllWithdrawals ? "Show less" : `View all ${withdrawalData.requests.length}`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Design Filters */}
               <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
@@ -892,10 +988,11 @@ export default function ProfilePage() {
                             ) && (
                                 <Link
                                   href={item.designId ? `/product/design-${item.designId}#reviews` : `/product/${item.product.slug}#reviews`}
-                                  className="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded font-medium transition flex items-center gap-1"
+                                  className="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded font-medium transition flex items-center justify-center gap-1 w-full sm:w-auto"
+                                  title={`Write a review for ${item.name}`}
                                 >
-                                  <Award size={12} />
-                                  Review
+                                  <Award size={14} />
+                                  <span className="whitespace-nowrap">Review this item</span>
                                 </Link>
                               )}
                           </div>
@@ -1022,6 +1119,14 @@ export default function ProfilePage() {
           )}
         </div>
       </div >
+
+      {/* Withdrawal Modal */}
+      <WithdrawModal
+        isOpen={withdrawModalOpen}
+        onClose={() => setWithdrawModalOpen(false)}
+        availableBalance={profile?.royaltyPoints || 0}
+        userToken={userInfo?.token || ""}
+      />
     </div >
   );
 }

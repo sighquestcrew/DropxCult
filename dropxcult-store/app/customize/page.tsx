@@ -220,7 +220,7 @@ export default function CustomizeDashboard() {
     let price = 0;
 
     if (req.type === "Hoodie") {
-      price = 3000; // Adjust hoodie logic here if needed
+      price = 999; // Updated from 3000 to 999 as per user request
     } else {
       price = hasSleeves ? 1199 : 999;
     }
@@ -256,7 +256,7 @@ export default function CustomizeDashboard() {
 
     // Calculate price - match backend logic
     const isOversized = req.tshirtType === "oversized";
-    const price = isOversized ? 1299 : 999;
+    const price = 999; // Flat price for all T-shirts now
 
     dispatch(addToCart({
       id: req.id,
@@ -634,7 +634,7 @@ export default function CustomizeDashboard() {
               <div>
                 <h3 className="text-lg font-bold text-white">{cartModal.design.name}</h3>
                 <p className="text-gray-400 text-sm">{cartModal.design.tshirtType === "oversized" ? "Oversized T-Shirt" : "Regular T-Shirt"}</p>
-                <p className="text-red-500 font-bold text-lg mt-1">₹{cartModal.design.tshirtType === "oversized" ? 1199 : 999}</p>
+                <p className="text-red-500 font-bold text-lg mt-1">₹999</p>
               </div>
             </div>
 

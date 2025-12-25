@@ -3,7 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Loader2, Trophy, Flame, Heart, MessageCircle, Share2, User, Crown, Users, TrendingUp, Clock, Award, Eye, ShoppingCart, Search, Sparkles, ChevronDown, Plus, X, ShoppingBag, Bookmark } from "lucide-react";
+import { Loader2, Trophy, Flame, Heart, MessageCircle, Share2, User, Crown, Users, TrendingUp, Clock, Award, Eye, ShoppingCart, Search, Sparkles, ChevronDown, Plus, X, ShoppingBag, Bookmark, Info } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/redux/store";
@@ -20,11 +20,22 @@ export default function CommunityPage() {
     const queryClient = useQueryClient();
     const router = useRouter();
 
-    const [activeTab, setActiveTab] = useState<"foryou" | "following" | "trending">("foryou");
+    const [activeTab, setActiveTab] = useState("foryou");
+    const [filter, setFilter] = useState("all");
     const [period, setPeriod] = useState("alltime");
-    const [selectedDesign, setSelectedDesign] = useState<any>(null);
-    const [commentText, setCommentText] = useState("");
+    const [sort, setSort] = useState("popular");
     const [likedDesigns, setLikedDesigns] = useState<Set<string>>(new Set());
+    const [commentingOn, setCommentingOn] = useState<string | null>(null);
+
+    // Size selector for community designs
+    const [sizeModalOpen, setSizeModalOpen] = useState(false);
+    const [designForSizing, setDesignForSizing] = useState<any>(null);
+    const [selectedSize, setSelectedSize] = useState("M");
+    const [showSizeChart, setShowSizeChart] = useState(false);
+    const sizes = ["S", "M", "L", "XL", "XXL"];
+
+    // Comment section
+    const [selectedDesign, setSelectedDesign] = useState<any>(null);
     const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
     const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
     const commentInputRef = useRef<HTMLInputElement>(null);
@@ -188,18 +199,29 @@ export default function CommunityPage() {
             toast.error("Please login to purchase");
             return;
         }
+        // Open size selector modal
+        setDesignForSizing(design);
+        setSelectedSize("M"); // Reset to default
+        setSizeModalOpen(true);
+    };
+
+    const confirmAddToCart = () => {
+        if (!designForSizing) return;
+
         dispatch(addToCart({
-            id: design.id,
-            name: design.name,
-            slug: `design-${design.id}`,
+            id: designForSizing.id,
+            name: designForSizing.name,
+            slug: `design-${designForSizing.id}`,
             price: 999,
-            image: design.previewImage || "",
-            size: "M",
+            image: designForSizing.previewImage || "",
+            size: selectedSize,
             qty: 1,
             isCustom: true,
-            designId: design.id
+            designId: designForSizing.id
         }));
-        toast.success(`${design.name} added to cart!`);
+        toast.success(`${designForSizing.name} (${selectedSize}) added to cart!`);
+        setSizeModalOpen(false);
+        setDesignForSizing(null);
     };
 
     const getRankColor = (rank: string) => {
@@ -386,7 +408,7 @@ export default function CommunityPage() {
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3 sm:gap-4">
                                             <button
-                                                onClick={() => design.is3D && setSelectedDesign(design)}
+                                                onClick={() => design.is3D && setSelectedDesignForComments(design)}
                                                 className="flex items-center gap-1.5 text-gray-500 hover:text-blue-500 transition p-1.5 sm:p-2 rounded-full hover:bg-blue-500/10"
                                             >
                                                 <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -948,6 +970,206 @@ export default function CommunityPage() {
                     </div>
                 )}
             </div>
+
+            {/* Size Selector Modal */}
+            {sizeModalOpen && designForSizing && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-75">
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 relative">
+                        {/* Close button */}
+                        <button
+                            onClick={() => setSizeModalOpen(false)}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                        >
+                            <X size={24} />
+                        </button>
+
+                        {/* Design preview */}
+                        <div className="flex items-center gap-4 mb-6">
+                            <img
+                                src={designForSizing.previewImage}
+                                alt={designForSizing.name}
+                                className="w-20 h-20 rounded-lg object-cover"
+                            />
+                            <div>
+                                <h3 className="font-bold text-lg">{designForSizing.name}</h3>
+                                <p className="text-red-500 font-bold text-xl">₹999</p>
+                            </div>
+                        </div>
+
+                        {/* Size selector */}
+                        <div className="mb-6">
+                            <div className="flex items-center justify-between mb-3">
+                                <label className="font-semibold">Select Size:</label>
+                                <button
+                                    onClick={() => setShowSizeChart(!showSizeChart)}
+                                    className="text-xs text-blue-500 hover:underline flex items-center gap-1"
+                                >
+                                    <Info size={14} />
+                                    Size Chart
+                                </button>
+                            </div>
+
+                            {/* Size Chart Table */}
+                            {showSizeChart && (
+                                <div className="mb-4 p-4 bg-black/50 rounded-lg border border-zinc-700">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                                            <Info size={16} className="text-red-500" />
+                                            {designForSizing.garmentType === "Hoodie" ? "Hoodie/Sweatshirt" : "Regular/Oversized T-Shirt"} Size Chart
+                                        </h4>
+                                    </div>
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-xs mb-4">
+                                            <thead>
+                                                <tr className="text-gray-400 border-b border-zinc-700">
+                                                    <th className="text-left py-2 px-2">Size</th>
+                                                    <th className="text-center py-2 px-2">Chest (in)</th>
+                                                    <th className="text-center py-2 px-2">Length (in)</th>
+                                                    <th className="text-center py-2 px-2">Shoulder (in)</th>
+                                                    <th className="text-center py-2 px-2">Sleeve (in)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="text-gray-300">
+                                                {designForSizing.garmentType === "Hoodie" ? (
+                                                    <>
+                                                        <tr className="border-b border-zinc-800">
+                                                            <td className="py-2 px-2 font-bold">S</td>
+                                                            <td className="text-center">38</td>
+                                                            <td className="text-center">27</td>
+                                                            <td className="text-center">16.5</td>
+                                                            <td className="text-center">23.5</td>
+                                                        </tr>
+                                                        <tr className="border-b border-zinc-800">
+                                                            <td className="py-2 px-2 font-bold">M</td>
+                                                            <td className="text-center">40</td>
+                                                            <td className="text-center">28</td>
+                                                            <td className="text-center">17.5</td>
+                                                            <td className="text-center">24</td>
+                                                        </tr>
+                                                        <tr className="border-b border-zinc-800">
+                                                            <td className="py-2 px-2 font-bold">L</td>
+                                                            <td className="text-center">42</td>
+                                                            <td className="text-center">29</td>
+                                                            <td className="text-center">18.5</td>
+                                                            <td className="text-center">24.5</td>
+                                                        </tr>
+                                                        <tr className="border-b border-zinc-800">
+                                                            <td className="py-2 px-2 font-bold">XL</td>
+                                                            <td className="text-center">44</td>
+                                                            <td className="text-center">30</td>
+                                                            <td className="text-center">19.5</td>
+                                                            <td className="text-center">25</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td className="py-2 px-2 font-bold">XXL</td>
+                                                            <td className="text-center">46</td>
+                                                            <td className="text-center">31</td>
+                                                            <td className="text-center">20.5</td>
+                                                            <td className="text-center">25.5</td>
+                                                        </tr>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <tr className="border-b border-zinc-800">
+                                                            <td className="py-2 px-2 font-bold">S</td>
+                                                            <td className="text-center">42</td>
+                                                            <td className="text-center">27.5</td>
+                                                            <td className="text-center">20</td>
+                                                            <td className="text-center">8.5</td>
+                                                        </tr>
+                                                        <tr className="border-b border-zinc-800">
+                                                            <td className="py-2 px-2 font-bold">M</td>
+                                                            <td className="text-center">44</td>
+                                                            <td className="text-center">28</td>
+                                                            <td className="text-center">21</td>
+                                                            <td className="text-center">9</td>
+                                                        </tr>
+                                                        <tr className="border-b border-zinc-800">
+                                                            <td className="py-2 px-2 font-bold">L</td>
+                                                            <td className="text-center">46</td>
+                                                            <td className="text-center">28.5</td>
+                                                            <td className="text-center">22</td>
+                                                            <td className="text-center">9.5</td>
+                                                        </tr>
+                                                        <tr className="border-b border-zinc-800">
+                                                            <td className="py-2 px-2 font-bold">XL</td>
+                                                            <td className="text-center">48</td>
+                                                            <td className="text-center">29</td>
+                                                            <td className="text-center">23</td>
+                                                            <td className="text-center">10</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td className="py-2 px-2 font-bold">XXL</td>
+                                                            <td className="text-center">50</td>
+                                                            <td className="text-center">29.5</td>
+                                                            <td className="text-center">24</td>
+                                                            <td className="text-center">10.5</td>
+                                                        </tr>
+                                                    </>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Size Recommendations */}
+                                    <div className="border-t border-zinc-700 pt-3">
+                                        <h5 className="text-xs font-bold mb-2 text-gray-400">Size Recommendations</h5>
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-gray-400">5'4" - 5'6", 50-60kg</span>
+                                                <span className="bg-red-600 text-white px-2 py-0.5 rounded font-bold">S</span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-gray-400">5'6" - 5'9", 60-70kg</span>
+                                                <span className="bg-red-600 text-white px-2 py-0.5 rounded font-bold">M</span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-gray-400">5'9" - 5'11", 70-80kg</span>
+                                                <span className="bg-red-600 text-white px-2 py-0.5 rounded font-bold">L</span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-gray-400">5'11" - 6'1", 80-90kg</span>
+                                                <span className="bg-red-600 text-white px-2 py-0.5 rounded font-bold">XL</span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-gray-400">6'1"+, 90kg+</span>
+                                                <span className="bg-red-600 text-white px-2 py-0.5 rounded font-bold">XXL</span>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-3 italic">
+                                            All measurements in inches. Expect tolerance ± 1 inch.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="grid grid-cols-5 gap-2">
+                                {sizes.map((size) => (
+                                    <button
+                                        key={size}
+                                        onClick={() => setSelectedSize(size)}
+                                        className={`py-3 rounded-lg font-bold transition ${selectedSize === size
+                                            ? "bg-white text-black"
+                                            : "bg-zinc-800 text-gray-400 hover:bg-zinc-700"
+                                            }`}
+                                    >
+                                        {size}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Add to cart button */}
+                        <button
+                            onClick={confirmAddToCart}
+                            className="w-full bg-gradient-to-r from-red-600 to-pink-600 text-white font-bold py-3 rounded-xl hover:scale-105 transition flex items-center justify-center gap-2"
+                        >
+                            <ShoppingCart size={20} />
+                            Add to Cart - {selectedSize}
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* YouTube-Style Comments Section */}
             {selectedDesign && selectedDesign.is3D && (

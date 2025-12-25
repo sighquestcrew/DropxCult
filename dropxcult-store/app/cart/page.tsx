@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useDispatch, useSelector } from "react-redux";
@@ -8,12 +9,27 @@ import { removeFromCart } from "@/redux/slices/cartSlice";
 import { Trash2, ArrowRight } from "lucide-react";
 
 export default function CartPage() {
+  const [mounted, setMounted] = useState(false);
   const dispatch = useDispatch();
   const { items, totalPrice } = useSelector((state: RootState) => state.cart);
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleRemove = (id: string, size: string) => {
     dispatch(removeFromCart({ id, size }));
   };
+
+  // Don't render cart until mounted (prevents hydration error)
+  if (!mounted) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center bg-black text-white">
+        <div className="animate-pulse">Loading cart...</div>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
