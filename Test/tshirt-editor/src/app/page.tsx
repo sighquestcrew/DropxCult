@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { CanvasTexture } from "three";
 import { Canvas } from "@react-three/fiber";
@@ -15,6 +15,14 @@ import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { setTshirtType, setTshirtColor } from "@/redux/slices/editorSlice";
 
 export default function Home() {
+    return (
+        <Suspense fallback={<div className="flex w-full min-h-screen items-center justify-center bg-[#1a1a1a] text-white">Loading...</div>}>
+            <EditorContent />
+        </Suspense>
+    );
+}
+
+function EditorContent() {
     const dispatch = useAppDispatch();
     const { tshirtType, tshirtColor } = useAppSelector((state) => state.editor);
     const searchParams = useSearchParams();
