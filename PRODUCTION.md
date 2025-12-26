@@ -50,39 +50,62 @@ npm -v
 
 ---
 
-## 3️⃣ Install PostgreSQL
+## 3️⃣ Setup AWS RDS (PostgreSQL)
+
+**Instead of local PostgreSQL, we'll use managed AWS RDS:**
+
+### Create RDS Instance
+
+1. **Go to AWS RDS Console** → Create Database
+2. **Engine:** PostgreSQL 14 or 15
+3. **Template:** Production (or Dev/Test for lower cost)
+4. **DB Instance:** `db.t3.micro` (Free Tier) or `db.t3.small`
+5. **Storage:** 20GB, enable auto-scaling
+6. **DB Name:** `dropxcult_prod`
+7. **Master Username:** `dropxcult`
+8. **Master Password:** Generate strong password
+9. **VPC:** Same VPC as your EC2
+10. **Public Access:** Yes (or configure VPC peering)
+11. **Security Group:** Create new or use existing
+
+### Configure Security Group
+
+**RDS Security Group - Inbound Rules:**
+| Type | Port | Source |
+|------|------|--------|
+| PostgreSQL | 5432 | EC2 Security Group ID |
+
+**Or allow from specific IP:**
+| Type | Port | Source |
+|------|------|--------|
+| PostgreSQL | 5432 | Your EC2 Private IP |
+
+### Get Connection String
+
+After RDS is created:
+
+1. Go to RDS → Your database → Connectivity & security
+2. **Endpoint:** `your-db.abc123.region.rds.amazonaws.com`
+3. **Port:** `5432`
+
+**Connection String Format:**
+```
+DATABASE_URL="postgresql://dropxcult:YOUR_PASSWORD@your-db.abc123.us-east-1.rds.amazonaws.com:5432/dropxcult_prod?sslmode=require"
+```
+
+⚠️ **Important:** Use `sslmode=require` for RDS (not `disable`)
+
+### Test Connection from EC2
 
 ```bash
-# Install PostgreSQL
-sudo apt install -y postgresql postgresql-contrib
+# Install PostgreSQL client (to test connection)
+sudo apt install -y postgresql-client
 
-# Start service
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
+# Test connection
+psql "postgresql://dropxcult:YOUR_PASSWORD@your-rds-endpoint:5432/dropxcult_prod"
 
-# Create database and user
-sudo -u postgres psql
-
-# Inside PostgreSQL shell:
-CREATE DATABASE dropxcult_prod;
-CREATE USER dropxcult WITH ENCRYPTED PASSWORD 'YOUR_STRONG_PASSWORD';
-GRANT ALL PRIVILEGES ON DATABASE dropxcult_prod TO dropxcult;
-ALTER DATABASE dropxcult_prod OWNER TO dropxcult;
-\q
-
-# Enable remote access (if needed)
-sudo nano /etc/postgresql/14/main/postgresql.conf
-# Change: listen_addresses = 'localhost' to listen_addresses = '*'
-
-sudo nano /etc/postgresql/14/main/pg_hba.conf
-# Add: host all all 0.0.0.0/0 md5
-
-sudo systemctl restart postgresql
-```
-
-**Connection String:**
-```
-DATABASE_URL="postgresql://dropxcult:YOUR_STRONG_PASSWORD@localhost:5432/dropxcult_prod?sslmode=disable"
+# If successful, you'll see: dropxcult_prod=>
+# Type \q to exit
 ```
 
 ---
@@ -110,8 +133,8 @@ nano .env
 ```
 
 ```env
-# Database
-DATABASE_URL="postgresql://dropxcult:YOUR_STRONG_PASSWORD@localhost:5432/dropxcult_prod?sslmode=disable"
+# Database (AWS RDS)
+DATABASE_URL="postgresql://dropxcult:YOUR_RDS_PASSWORD@your-db.abc123.us-east-1.rds.amazonaws.com:5432/dropxcult_prod?sslmode=require"
 
 # JWT Secrets (from earlier generation)
 JWT_SECRET="UybgVT7D3WZ/mD7wpIwha1IaRTWly9kqiGPeHX4fuaU="
@@ -145,8 +168,8 @@ nano .env
 ```
 
 ```env
-# Same DATABASE_URL, Cloudinary, and Razorpay credentials as admin
-DATABASE_URL="postgresql://dropxcult:YOUR_STRONG_PASSWORD@localhost:5432/dropxcult_prod?sslmode=disable"
+# Same DATABASE_URL as admin (AWS RDS)
+DATABASE_URL="postgresql://dropxcult:YOUR_RDS_PASSWORD@your-db.abc123.us-east-1.rds.amazonaws.com:5432/dropxcult_prod?sslmode=require"
 
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="your_cloud"
 CLOUDINARY_API_KEY="your_key"
@@ -168,7 +191,7 @@ nano .env
 ```
 
 ```env
-DATABASE_URL="postgresql://dropxcult:YOUR_STRONG_PASSWORD@localhost:5432/dropxcult_prod?sslmode=disable"
+DATABASE_URL="postgresql://dropxcult:YOUR_RDS_PASSWORD@your-db.abc123.us-east-1.rds.amazonaws.com:5432/dropxcult_prod?sslmode=require"
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="your_cloud"
 ```
 

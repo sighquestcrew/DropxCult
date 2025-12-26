@@ -36,6 +36,8 @@ export default function CommunityPage() {
 
     // Comment section
     const [selectedDesign, setSelectedDesign] = useState<any>(null);
+    const [selectedDesignForComments, setSelectedDesignForComments] = useState<any>(null);
+    const [commentText, setCommentText] = useState("");
     const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
     const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
     const commentInputRef = useRef<HTMLInputElement>(null);
