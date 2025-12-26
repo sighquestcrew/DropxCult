@@ -71,7 +71,15 @@ export default function AdminLoginPage() {
                 tempToken
             });
 
-            dispatch(setCredentials(data.user));
+            // Success! The cookie is set by the server.
+            // dispatch(setCredentials(data.user)); // Optional: Update Redux user info (no token needed)
+
+            // We just need to update user state without token
+            dispatch(setCredentials({
+                ...data.user,
+                // token: data.user.token // Server doesn't send token anymore
+            }));
+
             toast.success("Welcome, Admin!");
             router.push("/");
         } catch (error: any) {

@@ -13,6 +13,21 @@ export async function GET(
             return NextResponse.json({ error: "Order ID required" }, { status: 400 });
         }
 
+        // 🔒 SECURITY: AUTH CHECK
+        // If order belongs to a user, ONLY that user should be able to see it.
+        // Guest orders (userId: null) rely on the UUID link secrecy.
+
+        // 1. Get User if logged in
+        let currentUserId = null;
+        const { getTokenFromRequest, verifyAuth } = await import('@/lib/auth');
+        const token = await getTokenFromRequest(req);
+        if (token) {
+            const decoded = await verifyAuth(token);
+            if (decoded) {
+                currentUserId = decoded._id || decoded.id;
+            }
+        }
+
         // Try to find by full ID or partial ID (case insensitive)
         let order = await prisma.order.findUnique({
             where: { id },
@@ -103,6 +118,12 @@ export async function GET(
 
         // Return order with tracking info
         const orderData = order as any; // Type assertion for optional fields
+
+        // 🔒 SECURITY: VERIFY OWNERSHIP
+        if (order.userId && order.userId !== currentUserId) {
+            return NextResponse.json({ error: "Unauthorized: You do not have permission to view this order." }, { status: 403 });
+        }
+
         return NextResponse.json({
             id: order.id,
             status: order.status || "Placed",

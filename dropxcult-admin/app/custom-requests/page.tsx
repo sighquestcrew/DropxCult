@@ -19,9 +19,8 @@ export default function AdminCustomRequestsPage() {
   const { data: requests, isLoading } = useQuery({
     queryKey: ["admin-custom-requests"],
     queryFn: async () => {
-      const { data } = await axios.get("/api/customize", {
-        headers: { Authorization: `Bearer ${userInfo?.token}` }
-      });
+      // Cookie handled automatically
+      const { data } = await axios.get("/api/customize");
       return data;
     },
     enabled: !!userInfo?.isAdmin,
@@ -72,9 +71,9 @@ export default function AdminCustomRequestsPage() {
                   <div className="flex justify-between">
                     <h3 className="font-bold">{req.user?.name || "Unknown"}</h3>
                     <span className={`text-xs font-bold px-2 py-1 rounded h-fit ${req.status === "Pending" ? "bg-blue-900 text-blue-300" :
-                        req.status === "Accepted" ? "bg-green-900 text-green-300" :
-                          req.status === "Royalty_Pending" ? "bg-yellow-900 text-yellow-300" :
-                            "bg-red-900 text-red-300"
+                      req.status === "Accepted" ? "bg-green-900 text-green-300" :
+                        req.status === "Royalty_Pending" ? "bg-yellow-900 text-yellow-300" :
+                          "bg-red-900 text-red-300"
                       }`}>{req.status}</span>
                   </div>
                   <p className="text-xs text-gray-400">{req.user?.email}</p>

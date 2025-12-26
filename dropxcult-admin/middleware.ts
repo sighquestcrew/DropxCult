@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 // Full Redis rate limiting is applied in API routes
 const rateLimitMap = new Map<string, { count: number; lastReset: number }>();
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
     const response = NextResponse.next();
 
     // Get IP from headers
@@ -14,9 +14,16 @@ export function middleware(request: NextRequest) {
         request.headers.get("x-real-ip") ||
         "127.0.0.1";
 
-    // 🛑 Basic Rate Limiting for Edge (APIs have additional Redis limiting)
+    // 🔒 STRICT SECURITY: API Route Protection
     if (request.nextUrl.pathname.startsWith("/api")) {
-        const limit = 50; // Admin has fewer users, stricter global limit
+        // Exclude public routes
+        const publicPaths = ["/api/auth/login", "/api/2fa"];
+        if (publicPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
+            return response; // validation happens in-route or not needed
+        }
+
+        // 1. Rate Limiting (Stricter for admin API)
+        const limit = 20; // 20 requests per minute per IP
         const windowMs = 60 * 1000;
 
         if (!rateLimitMap.has(ip)) {
@@ -24,8 +31,6 @@ export function middleware(request: NextRequest) {
         }
 
         const ipData = rateLimitMap.get(ip)!;
-
-        // Reset if window has passed
         if (Date.now() - ipData.lastReset > windowMs) {
             ipData.count = 0;
             ipData.lastReset = Date.now();
@@ -37,8 +42,52 @@ export function middleware(request: NextRequest) {
                 { status: 429, headers: { "Content-Type": "application/json" } }
             );
         }
-
         ipData.count += 1;
+
+        // 2. Authentication Check (Gatekeeper)
+        // Check for Cookie OR Header
+        let token = request.cookies.get("admin_token")?.value;
+        const authHeader = request.headers.get("authorization");
+
+        if (!token && authHeader && authHeader.startsWith("Bearer ")) {
+            token = authHeader.split(" ")[1];
+        }
+
+        if (!token) {
+            console.error(`⛔ Access Denied: No token found for ${request.nextUrl.pathname}`);
+            return new NextResponse(
+                JSON.stringify({ error: "Unauthorized: Missing authentication" }),
+                { status: 401, headers: { "Content-Type": "application/json" } }
+            );
+        }
+
+        try {
+            // We verify manually here to keep middleware standalone-ish, 
+            // or import from lib/auth if we can ensure edge compatibility.
+            // Using 'jose' directly here is safest for Middleware.
+            const { jwtVerify } = await import('jose');
+
+            // MATCHING LOGIC WITH api/2fa/verify/route.ts
+            const secretValue = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || "fallback-secret";
+            const secret = new TextEncoder().encode(secretValue);
+
+            const { payload } = await jwtVerify(token, secret);
+
+            if (!payload) throw new Error("Invalid Token");
+
+            // Check API Key/Role if payload has it
+            if (!payload.isAdmin) {
+                console.error(`⛔ User is not admin: isAdmin=${payload.isAdmin}`);
+                throw new Error("Insufficient Permissions");
+            }
+
+        } catch (error: any) {
+            console.error("❌ Middleware Auth Failed:", error?.message || error);
+            return new NextResponse(
+                JSON.stringify({ error: "Unauthorized: Invalid token" }),
+                { status: 401, headers: { "Content-Type": "application/json" } }
+            );
+        }
     }
 
     // ✅ Security Headers - Critical for Admin Panel
@@ -66,6 +115,18 @@ export function middleware(request: NextRequest) {
         "Permissions-Policy",
         "camera=(), microphone=(), geolocation=(), payment=()"
     );
+
+    // Content Security Policy
+    const csp = [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // unsafe-eval needed for Next.js dev, unsafe-inline for some UI libs
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' blob: data: https://res.cloudinary.com https://*.cloudinary.com",
+        "font-src 'self'",
+        "connect-src 'self' https://res.cloudinary.com https://*.cloudinary.com",
+    ].join("; ");
+
+    response.headers.set("Content-Security-Policy", csp);
 
     return response;
 }

@@ -31,7 +31,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
         try {
             const parsed = JSON.parse(userInfo);
-            if (!parsed.token || !parsed.isAdmin) {
+            // Relaxed check: We only care if they are admin. 
+            // The actual token is now HTTP-only cookie, so we can't check it here.
+            if (!parsed.isAdmin) {
                 router.replace("/login");
                 return;
             }

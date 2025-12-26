@@ -91,6 +91,7 @@ export default function CampaignsPage() {
 
     const fetchProducts = async () => {
         try {
+            // Cookie handled automatically
             const { data } = await axios.get("/api/products");
             // Handle both array and object response
             const productList = Array.isArray(data) ? data : (data.products || []);

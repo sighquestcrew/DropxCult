@@ -3,13 +3,14 @@ import type { NextRequest } from 'next/server';
 
 const rateLimitMap = new Map();
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
     const response = NextResponse.next();
     // Get IP from headers (works in Vercel/Edge), fallback for local dev
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ||
         request.headers.get('x-real-ip') ||
         '127.0.0.1';
 
+    // 🛑 Rate Limiting (Basic In-Memory)
     // 🛑 Rate Limiting (Basic In-Memory)
     // Only apply to /api routes
     if (request.nextUrl.pathname.startsWith('/api')) {
@@ -21,8 +22,6 @@ export function middleware(request: NextRequest) {
         }
 
         const ipData = rateLimitMap.get(ip);
-
-        // Reset if window has passed
         if (Date.now() - ipData.lastReset > windowMs) {
             ipData.count = 0;
             ipData.lastReset = Date.now();
@@ -34,8 +33,31 @@ export function middleware(request: NextRequest) {
                 { status: 429, headers: { 'Content-Type': 'application/json' } }
             );
         }
-
         ipData.count += 1;
+
+        // 🔒 AUTH PROTECTION: User Profile Routes
+        // We only enforce strict middleware auth on /api/user/* because /api/orders needs to support internal/guest flows (handled in route).
+        if (request.nextUrl.pathname.startsWith("/api/user")) {
+            const authHeader = request.headers.get("authorization");
+            if (!authHeader || !authHeader.startsWith("Bearer ")) {
+                return new NextResponse(
+                    JSON.stringify({ error: "Unauthorized" }),
+                    { status: 401, headers: { "Content-Type": "application/json" } }
+                );
+            }
+
+            const token = authHeader.split(" ")[1];
+            try {
+                const { jwtVerify } = await import('jose');
+                const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+                await jwtVerify(token, secret);
+            } catch (error) {
+                return new NextResponse(
+                    JSON.stringify({ error: "Invalid Token" }),
+                    { status: 401, headers: { "Content-Type": "application/json" } }
+                );
+            }
+        }
     }
 
     // ✅ Security Headers - Protection against common attacks

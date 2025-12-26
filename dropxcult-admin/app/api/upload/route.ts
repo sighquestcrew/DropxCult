@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 import cloudinary from "@/lib/cloudinary";
 
+import { getTokenFromRequest, verifyAuth } from "@/lib/auth";
+
 export async function POST(req: Request) {
     try {
+        // 🛡️ SECURITY: Admin Only
+        const token = await getTokenFromRequest(req);
+        if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        const user = await verifyAuth(token);
+        if (!user || !user.isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
         // 2. Get the file from the form
         const formData = await req.formData();
         const file = formData.get("file") as File;
@@ -42,6 +51,13 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
     try {
+        // 🛡️ SECURITY: Admin Only
+        const token = await getTokenFromRequest(req);
+        if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        const user = await verifyAuth(token);
+        if (!user || !user.isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
         const { public_id } = await req.json();
 
         if (!public_id) {

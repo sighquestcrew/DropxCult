@@ -5,7 +5,7 @@ interface UserInfo {
     name: string;
     email: string;
     isAdmin: boolean;
-    token: string;
+    token?: string; // Optional now, since we use HttpOnly cookies
     image?: string;
 }
 

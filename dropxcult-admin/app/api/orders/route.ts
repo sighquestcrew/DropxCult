@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getTokenFromRequest, verifyAuth } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  // 🛡️ SECURITY: Defense in Depth (even if middleware misses it)
+  const token = await getTokenFromRequest(req);
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const user = await verifyAuth(token);
+  if (!user || !user.isAdmin) {
+    return NextResponse.json({ error: "Forbidden: Admins Only" }, { status: 403 });
+  }
+
   const { searchParams } = new URL(req.url);
 
   // Parse query parameters

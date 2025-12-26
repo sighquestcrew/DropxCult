@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import jwt from "jsonwebtoken";
+import { verifyAuth, getTokenFromRequest } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 // Updated Rank Logic
@@ -15,25 +15,22 @@ const calculateRank = (score: number, isAdmin: boolean) => {
   return "Initiate";
 };
 
-const getUser = (req: Request) => {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
-  const token = authHeader.split(" ")[1];
-  try {
-    return jwt.verify(token, process.env.NEXTAUTH_SECRET!) as { _id: string };
-  } catch (error) {
-    return null;
-  }
-};
-
 // GET: Fetch Profile
 export async function GET(req: Request) {
   try {
-    const decoded = getUser(req);
+    const token = await getTokenFromRequest(req);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const decoded = await verifyAuth(token);
     if (!decoded) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // Jose returns payload, ensure _id is present (or use sub/id depending on token structure)
+    // Assuming token has _id or id
+    const payload = decoded as any;
+    const userId = (payload._id || payload.id) as string;
+
     const user = await prisma.user.findUnique({
-      where: { id: decoded._id },
+      where: { id: userId },
     });
 
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -162,8 +159,13 @@ export async function GET(req: Request) {
 // PUT: Update Profile
 export async function PUT(req: Request) {
   try {
-    const decoded = getUser(req);
+    const token = await getTokenFromRequest(req);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const decoded = await verifyAuth(token);
     if (!decoded) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const payload = decoded as any;
+    const userId = (payload._id || payload.id) as string;
 
     const { name, bio, image, banner, email, password } = await req.json();
 
@@ -180,7 +182,7 @@ export async function PUT(req: Request) {
     }
 
     const updatedUser = await prisma.user.update({
-      where: { id: decoded._id },
+      where: { id: userId },
       data: dataToUpdate
     });
 
@@ -203,11 +205,16 @@ export async function PUT(req: Request) {
 // DELETE: Delete Account
 export async function DELETE(req: Request) {
   try {
-    const decoded = getUser(req);
+    const token = await getTokenFromRequest(req);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const decoded = await verifyAuth(token);
     if (!decoded) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const payload = decoded as any;
+    const userId = (payload._id || payload.id) as string;
 
     await prisma.user.delete({
-      where: { id: decoded._id }
+      where: { id: userId }
     });
     return NextResponse.json({ message: "Account Deleted" });
   } catch (error) {

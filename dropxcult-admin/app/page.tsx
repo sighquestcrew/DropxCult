@@ -11,15 +11,26 @@ import Image from "next/image";
 import Link from "next/link";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart } from "recharts";
 
+import { useSelector } from "react-redux";
+import { RootState } from "@/redux/store";
+
 const COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#8b5cf6"];
 
 export default function AdminDashboard() {
+  /* 
+   * SECURITY UPDATE: 
+   * Now using HttpOnly cookies for auth. 
+   * No longer need to manually assume Bearer token from Redux.
+   */
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: async () => {
+      // Automatic cookie transmission
       const { data } = await axios.get("/api/stats");
       return data;
     },
+    // Enable immediately, don't wait for token
+    enabled: true,
   });
 
   if (isLoading) {

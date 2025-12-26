@@ -64,37 +64,43 @@ export async function POST(req: Request) {
                 return NextResponse.json({ error: "Access Denied: Admins Only" }, { status: 403 });
             }
 
-            // 3. Issue Token
-            // Note: Using same secret as store to ensure compatibility if tokens are shared/decoded elsewhere, 
-            // but essentially this is now a standalone token for admin app session.
-            const token = jwt.sign(
-                { _id: user.id, isAdmin: user.isAdmin, name: user.name, email: user.email },
-                process.env.NEXTAUTH_SECRET!,
-                { expiresIn: "24h" }
-            );
+            // 3. ENFORCE 2FA - DO NOT ISSUE TOKEN YET
+            // Instead of returning a token, we trigger the 2FA flow automatically here
 
-            // Try to log audit if the function exists and schema matches
-            try {
-                // Checking if we can import logAudit dynamically or just assume it works 
-                // For now, let's skip complex audit logging here to minimize breakage unless we verify lib/audit.ts signature
-                // We can add it back if the user requests strict auditing on admin side too.
-            } catch (e) {
-                console.error("Audit log failed", e);
-            }
+            // Generate 2FA code
+            const { generateTOTP } = await import("@/lib/2fa");
+            const code = generateTOTP();
+            const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+            // Store in database
+            await prisma.twoFactorCode.upsert({
+                where: { userId: user.id },
+                update: { code, expiresAt, attempts: 0 },
+                create: { userId: user.id, code, expiresAt, attempts: 0 },
+            });
+
+            // Send email (Reuse logic or call internal helper if refactored, for now simplified inline or assume frontend calls send)
+            // Ideally, we should send it here to be atomic. 
+            // For now, let's keep it simple: Return success, frontend calls /api/2fa/send or we rely on frontend's current flow.
+            // BUT, to be secure, we must NOT return the token.
+
+            // NOTE: The frontend currently calls /api/2fa/send after login. 
+            // We can keep that flow for now, OR move sending here. 
+            // To minimize frontend breakage, let's just STOP returning the token and let frontend trigger send.
 
             return NextResponse.json({
-                _id: user.id,
-                name: user.name,
-                email: user.email,
-                image: user.image,
+                require2fa: true,
                 isAdmin: user.isAdmin,
-                token,
+                // Do NOT return token
             });
+
         } else {
             await logAudit({
+                userId: user?.id, // might be undefined
+                userEmail: email,
+                userRole: "admin", // presumed
                 action: "LOGIN_FAILED",
                 entity: "User",
-                userEmail: email,
                 status: "FAILURE",
                 errorMessage: "Invalid credentials"
             });

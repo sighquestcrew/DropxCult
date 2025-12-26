@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getTokenFromRequest, verifyAuth } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  // 🛡️ SECURITY: Admin Only
+  const token = await getTokenFromRequest(req);
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const user = await verifyAuth(token);
+  if (!user || !user.isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const { searchParams } = new URL(req.url);
 
   // Parse query parameters
@@ -76,8 +84,15 @@ export async function GET(req: NextRequest) {
 }
 
 // POST - Create new product
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    // 🛡️ SECURITY: Admin Only
+    const token = await getTokenFromRequest(req);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const user = await verifyAuth(token);
+    if (!user || !user.isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
     const body = await req.json();
 
     const { name, price, description, category, garmentType, images, slug } = body;

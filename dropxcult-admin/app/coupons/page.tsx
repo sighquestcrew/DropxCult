@@ -34,11 +34,8 @@ export default function CouponsPage() {
 
     const fetchCoupons = async () => {
         try {
-            const userInfo = localStorage.getItem("adminUserInfo");
-            const token = userInfo ? JSON.parse(userInfo).token : null;
-            const { data } = await axios.get("/api/coupons", {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            // Cookie handled automatically
+            const { data } = await axios.get("/api/coupons");
             setCoupons(data);
         } catch (error) {
             toast.error("Failed to fetch coupons");

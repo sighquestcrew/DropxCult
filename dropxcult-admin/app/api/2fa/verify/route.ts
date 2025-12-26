@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
         await prisma.twoFactorCode.delete({ where: { userId: user.id } });
 
         // Generate JWT token
+        // Generate JWT token
         const token = jwt.sign(
             {
                 id: user.id,
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
                 twoFactorVerified: true
             },
             JWT_SECRET,
-            { expiresIn: "7d" }
+            { expiresIn: "24h" } // Reduced to 24h for security
         );
 
         // Log successful 2FA login
@@ -98,17 +99,30 @@ export async function POST(req: NextRequest) {
             status: "SUCCESS",
         });
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             success: true,
             user: {
                 id: user.id,
-                _id: user.id,  // For frontend compatibility
                 name: user.name,
                 email: user.email,
                 isAdmin: true,
-                token,
+                // token, // TOKEN NO LONGER RETURNED IN BODY
             },
         });
+
+        // 🍪 SET HTTP-ONLY COOKIE
+        const isProduction = process.env.NODE_ENV === "production";
+        console.log(`🍪 Setting Cookie: Secure=${isProduction}, Env=${process.env.NODE_ENV}`);
+
+        response.cookies.set("admin_token", token, {
+            httpOnly: true,
+            secure: isProduction, // Make sure this is false on localhost
+            sameSite: "lax", // Relax to Lax for now to avoid Strict issues with redirects
+            maxAge: 60 * 60 * 24, // 24 hours
+            path: "/",
+        });
+
+        return response;
     } catch (error) {
         console.error("2FA verify error:", error);
         return NextResponse.json({ error: "Verification failed" }, { status: 500 });
