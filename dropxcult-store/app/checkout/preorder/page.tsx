@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
 import { toast } from "sonner";
@@ -32,6 +32,18 @@ interface Product {
 }
 
 export default function PreOrderCheckoutPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-black flex items-center justify-center">
+                <Loader2 className="animate-spin text-purple-500" size={40} />
+            </div>
+        }>
+            <PreOrderCheckoutContent />
+        </Suspense>
+    );
+}
+
+function PreOrderCheckoutContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
