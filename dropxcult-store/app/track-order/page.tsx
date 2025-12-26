@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Package, Search, Truck, CheckCircle, Clock, MapPin, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -26,6 +26,14 @@ const getStepIndex = (status: string, isPaid: boolean) => {
 };
 
 export default function TrackOrderPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" size={32} /></div>}>
+            <TrackOrderContent />
+        </Suspense>
+    );
+}
+
+function TrackOrderContent() {
     const searchParams = useSearchParams();
     const [orderId, setOrderId] = useState("");
     const [order, setOrder] = useState<any>(null);
