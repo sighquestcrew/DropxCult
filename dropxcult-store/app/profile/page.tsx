@@ -6,7 +6,7 @@ import { Loader2, Package, Palette, Wallet, Edit3, Trash2, Users, Heart, Crown, 
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/redux/store";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { toast } from "sonner";
 import { setCredentials, logout } from "@/redux/slices/authSlice";
 import dayjs from "dayjs";
@@ -14,6 +14,14 @@ import Link from "next/link";
 import WithdrawModal from "@/components/WithdrawModal";
 
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-red-600" size={32} /></div>}>
+      <ProfileContent />
+    </Suspense>
+  );
+}
+
+function ProfileContent() {
   const { userInfo } = useSelector((state: RootState) => state.auth);
   const router = useRouter();
   const dispatch = useDispatch();
